@@ -350,7 +350,7 @@
 
     // Show loading state
     $aiAnswer.style.display = 'block';
-    $aiBody.innerHTML = '<div class="ai-loading"><div class="spinner"></div> Analyzing documents...</div>';
+    $aiBody.innerHTML = '<div class="ai-loading"><div class="spinner"></div> Jeff is thinking...</div>';
     $aiRelated.innerHTML = '';
 
     fetch('/api/ask', {
@@ -376,12 +376,38 @@
       var answer = escapeHtml(data.answer || 'No answer generated.');
       // Convert **bold** to <strong>
       answer = answer.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      // Convert numbered lists: "1. " at start of line
+      answer = answer.replace(/^(\d+)\.\s+/gm, '<span class="ai-num">$1.</span> ');
       // Convert bullet points
       answer = answer.replace(/^[-•]\s+/gm, '<span class="ai-bullet">&#x2022;</span> ');
+      // Convert [DOC:id] references to clickable links
+      answer = answer.replace(/\[DOC:([^\]]+)\]/g, function (_, docId) {
+        return '<a class="ai-doc-link" href="#" onclick="openModal(\'' + escapeHtml(docId).replace(/'/g, "\\'") + '\'); return false;">' + escapeHtml(docId) + '</a>';
+      });
       // Convert newlines to <br>
       answer = answer.replace(/\n/g, '<br>');
 
       $aiBody.innerHTML = '<div class="ai-text">' + answer + '</div>';
+
+      // Sources list
+      if (data.sources && data.sources.length) {
+        var srcHtml = '<div class="ai-sources"><span class="ai-sources-label">SOURCES</span>';
+        data.sources.forEach(function (s, i) {
+          var label = escapeHtml(s.doc_id);
+          var detail = [];
+          if (s.source) detail.push(escapeHtml(s.source));
+          if (s.doc_type) detail.push(escapeHtml(s.doc_type));
+          if (s.from) detail.push('From: ' + escapeHtml(s.from));
+          if (s.subject) detail.push(escapeHtml(s.subject));
+          if (s.date) detail.push(escapeHtml(s.date));
+          srcHtml += '<a class="ai-source-item" href="#" onclick="openModal(\'' + escapeHtml(s.doc_id).replace(/'/g, "\\'") + '\'); return false;">'
+            + '<span class="ai-source-id">' + (i + 1) + '. ' + label + '</span>'
+            + (detail.length ? '<span class="ai-source-detail">' + detail.join(' · ') + '</span>' : '')
+            + '</a>';
+        });
+        srcHtml += '</div>';
+        $aiBody.innerHTML += srcHtml;
+      }
 
       if (data.expanded_query) {
         $aiBody.innerHTML += '<div class="ai-expanded">Searched for: <em>' + escapeHtml(data.expanded_query) + '</em></div>';

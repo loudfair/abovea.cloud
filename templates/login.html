@@ -1,0 +1,171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Access</title>
+    <style>
+        *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            background: #000;
+            color: #fff;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Helvetica Neue', sans-serif;
+            height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .gate {
+            text-align: center;
+            width: 100%;
+            max-width: 320px;
+            padding: 0 24px;
+        }
+
+        .mark {
+            font-size: 0.62rem;
+            font-weight: 400;
+            letter-spacing: 0.35em;
+            text-transform: uppercase;
+            color: rgba(255, 255, 255, 0.25);
+            margin-bottom: 48px;
+        }
+
+        .field {
+            position: relative;
+            margin-bottom: 16px;
+        }
+
+        .field input {
+            width: 100%;
+            background: transparent;
+            border: none;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+            color: #fff;
+            font-family: inherit;
+            font-size: 1rem;
+            font-weight: 300;
+            padding: 12px 0;
+            text-align: center;
+            letter-spacing: 0.08em;
+            outline: none;
+            transition: border-color 0.3s ease;
+        }
+
+        .field input::placeholder {
+            color: rgba(255, 255, 255, 0.15);
+            font-weight: 300;
+        }
+
+        .field input:focus {
+            border-bottom-color: rgba(255, 255, 255, 0.4);
+        }
+
+        .enter {
+            background: transparent;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+            color: rgba(255, 255, 255, 0.5);
+            font-family: inherit;
+            font-size: 0.68rem;
+            font-weight: 400;
+            letter-spacing: 0.25em;
+            text-transform: uppercase;
+            padding: 14px 48px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            margin-top: 8px;
+            border-radius: 0;
+        }
+
+        .enter:hover {
+            color: rgba(255, 255, 255, 0.9);
+            border-color: rgba(255, 255, 255, 0.3);
+        }
+
+        .error {
+            font-size: 0.72rem;
+            color: rgba(255, 80, 80, 0.7);
+            margin-top: 20px;
+            height: 18px;
+            letter-spacing: 0.05em;
+            transition: opacity 0.3s ease;
+        }
+
+        .shake {
+            animation: shake 0.4s ease;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            20% { transform: translateX(-8px); }
+            40% { transform: translateX(8px); }
+            60% { transform: translateX(-4px); }
+            80% { transform: translateX(4px); }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+            .shake { animation: none; }
+        }
+    </style>
+</head>
+<body>
+
+    <div class="gate" id="gate">
+        <div class="mark">E P S T E I N &ensp; F I L E S</div>
+        <div class="field">
+            <input type="password" id="pw" placeholder="password" autocomplete="off" autofocus>
+        </div>
+        <button class="enter" id="go" type="button">Enter</button>
+        <div class="error" id="err"></div>
+    </div>
+
+    <script>
+    (function () {
+        var $pw = document.getElementById('pw');
+        var $go = document.getElementById('go');
+        var $err = document.getElementById('err');
+        var $gate = document.getElementById('gate');
+
+        function submit() {
+            var pw = $pw.value;
+            if (!pw) { $pw.focus(); return; }
+            $go.textContent = '...';
+            $err.textContent = '';
+
+            fetch('/auth', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ password: pw })
+            })
+            .then(function (r) { return r.json().then(function (d) { return { ok: r.ok, data: d }; }); })
+            .then(function (res) {
+                if (res.data.ok) {
+                    window.location.href = '/';
+                } else {
+                    $go.textContent = 'Enter';
+                    $err.textContent = 'wrong password';
+                    $gate.classList.remove('shake');
+                    void $gate.offsetWidth;
+                    $gate.classList.add('shake');
+                    $pw.value = '';
+                    $pw.focus();
+                }
+            })
+            .catch(function () {
+                $go.textContent = 'Enter';
+                $err.textContent = 'connection error';
+            });
+        }
+
+        $go.addEventListener('click', submit);
+        $pw.addEventListener('keydown', function (e) {
+            if (e.key === 'Enter') submit();
+        });
+    })();
+    </script>
+
+</body>
+</html>

@@ -1133,6 +1133,7 @@ mark, .highlight {
     font-weight: 500;
     letter-spacing: 0.15em;
     color: var(--text-tertiary);
+    text-transform: uppercase;
 }
 
 .ai-close {
@@ -1225,6 +1226,84 @@ mark, .highlight {
 .ai-related .suggestion {
     font-size: 0.7rem;
     padding: 4px 12px;
+}
+
+/* Numbered list items in AI answers */
+.ai-num {
+    color: var(--text-primary);
+    font-weight: 600;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    margin-right: 4px;
+}
+
+/* Clickable document references in AI text */
+.ai-doc-link {
+    font-family: var(--font-mono);
+    font-size: 0.74rem;
+    color: var(--text-tertiary);
+    text-decoration: none;
+    border-bottom: 1px dotted var(--border);
+    padding: 1px 4px;
+    border-radius: 2px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+
+.ai-doc-link:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+    border-bottom-color: var(--text-tertiary);
+}
+
+/* Sources list at bottom of AI answer */
+.ai-sources {
+    margin-top: 20px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+}
+
+.ai-sources-label {
+    display: block;
+    font-family: var(--font-mono);
+    font-size: 0.62rem;
+    font-weight: 500;
+    letter-spacing: 0.18em;
+    color: var(--text-muted);
+    margin-bottom: 10px;
+}
+
+.ai-source-item {
+    display: block;
+    padding: 8px 12px;
+    margin-bottom: 4px;
+    border-radius: var(--radius);
+    text-decoration: none;
+    color: var(--text-secondary);
+    transition: all 0.15s ease;
+    cursor: pointer;
+    border: 1px solid transparent;
+}
+
+.ai-source-item:hover {
+    background: rgba(255, 255, 255, 0.03);
+    border-color: var(--border);
+    color: var(--text-primary);
+}
+
+.ai-source-id {
+    font-family: var(--font-mono);
+    font-size: 0.76rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+    display: block;
+}
+
+.ai-source-detail {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    margin-top: 2px;
+    display: block;
 }
 
 /* ─── Reduced Motion ───────────────────────────────────────────────────────── */

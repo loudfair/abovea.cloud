@@ -19,9 +19,22 @@ from collections import Counter
 from datetime import datetime
 from typing import Optional
 
+# Load .env file if present (never committed — in .gitignore)
+_env_path = Path(__file__).resolve().parent / ".env"
+if _env_path.exists():
+    with open(_env_path) as _f:
+        for _line in _f:
+            _line = _line.strip()
+            if _line and not _line.startswith("#") and "=" in _line:
+                _k, _v = _line.split("=", 1)
+                os.environ.setdefault(_k.strip(), _v.strip())
+
+import hashlib
+import hmac
+
 import numpy as np
 import faiss
-from flask import Flask, render_template, request, jsonify
+from flask import Flask, render_template, request, jsonify, session, redirect, url_for, make_response
 import click
 
 BASE = Path(__file__).resolve().parent
@@ -29,6 +42,48 @@ INDEX_DIR = BASE / "data" / "index"
 CORPUS_PATH = BASE / "data" / "normalized" / "corpus.jsonl"
 
 app = Flask(__name__, template_folder=str(BASE / "templates"), static_folder=str(BASE / "static"))
+app.secret_key = os.environ.get("FLASK_SECRET_KEY", os.urandom(32).hex())
+
+
+# ─── Auth Gate ────────────────────────────────────────────────────────────────
+
+SITE_PASSWORD_HASH = hashlib.sha256(
+    os.environ.get("SITE_PASSWORD", "").encode()
+).hexdigest() if os.environ.get("SITE_PASSWORD") else None
+
+
+@app.before_request
+def require_auth():
+    """Block all routes unless authenticated. Password checked server-side only."""
+    if not SITE_PASSWORD_HASH:
+        return  # no password set — open access
+    if request.path == "/auth":
+        return  # allow the login endpoint itself
+    if request.path.startswith("/static/"):
+        return  # allow static files (CSS loads on login page)
+    if session.get("authenticated"):
+        return  # already logged in
+    # Not authenticated — show login page
+    if request.path != "/login":
+        return redirect(url_for("login_page"))
+
+
+@app.route("/login")
+def login_page():
+    return render_template("login.html")
+
+
+@app.route("/auth", methods=["POST"])
+def auth():
+    """Server-side password check. Password never stored in frontend."""
+    data = request.get_json(force=True, silent=True) or {}
+    password = data.get("password", "")
+    pw_hash = hashlib.sha256(password.encode()).hexdigest()
+    if hmac.compare_digest(pw_hash, SITE_PASSWORD_HASH or ""):
+        session["authenticated"] = True
+        session.permanent = True
+        return jsonify({"ok": True})
+    return jsonify({"ok": False, "error": "Wrong password"}), 401
 
 # ─── Lazy-loaded globals ──────────────────────────────────────────────────────
 
@@ -635,6 +690,27 @@ def ai_ask(question: str, search_results: list, max_context: int = 10):
         from openai import OpenAI
         client = OpenAI(api_key=api_key)
 
+        # Include real database stats so the AI knows the data
+        stats = get_stats()
+        stats_block = (
+            f"=== DATABASE STATS ===\n"
+            f"Total documents: {stats['total_documents']:,}\n"
+            f"Documents with embeddings: {stats['with_embeddings']:,}\n"
+            f"Text-only documents: {stats['text_only']:,}\n"
+            f"Unique people indexed: {stats['unique_people']:,}\n"
+            f"Unique words indexed: {stats['unique_words']:,}\n"
+            f"Index size: {stats['index_size_mb']} MB\n"
+            f"\nDocuments by source:\n"
+        )
+        for src, cnt in stats.get("sources", {}).items():
+            stats_block += f"  - {src}: {cnt:,}\n"
+        stats_block += f"\nDocuments by type:\n"
+        for dt, cnt in stats.get("doc_types", {}).items():
+            stats_block += f"  - {dt}: {cnt:,}\n"
+        stats_block += f"\nTop 30 most mentioned people:\n"
+        for name, cnt in list(stats.get("top_people", {}).items())[:30]:
+            stats_block += f"  - {name}: appears in {cnt:,} documents\n"
+
         # Build context from top results
         context_parts = []
         for i, r in enumerate(search_results[:max_context]):
@@ -670,20 +746,28 @@ def ai_ask(question: str, search_results: list, max_context: int = 10):
                 {
                     "role": "system",
                     "content": (
-                        "You are a research assistant analyzing the Epstein case files. "
-                        "Answer the user's question based ONLY on the provided documents. "
-                        "Be specific — cite document IDs and quote relevant passages. "
-                        "If the documents don't contain enough information to answer, say so. "
-                        "Be concise but thorough. Use bullet points for clarity."
+                        "You are 'Jeff', a sharp research analyst with deep knowledge of the Epstein case files archive. "
+                        "You have access to DATABASE STATS (exact counts from the real database) and SEARCH RESULTS (sample documents).\n\n"
+                        "CRITICAL RULES:\n"
+                        "1. USE THE DATABASE STATS — they are REAL numbers from the actual database. When asked 'how many emails' or "
+                        "'how many documents', answer with the exact counts from the stats. Don't say 'I don't know' when the stats tell you.\n"
+                        "2. When listing people, names, or items: use a NUMBERED LIST (1. 2. 3.) ranked by frequency/importance. "
+                        "The 'Top people' in the stats ARE the real frequency counts — use them.\n"
+                        "3. ALWAYS cite sources: use [DOC:document_id] format — this becomes a clickable link.\n"
+                        "4. Be DIRECT and CONFIDENT. Don't hedge with 'based on the provided documents' — just answer.\n"
+                        "5. If asked about 'most common', 'top', 'who', 'how many' — give concrete numbers and ranked lists.\n"
+                        "6. Quote short relevant passages when they add value.\n"
+                        "7. Connect the dots — if you see the same person in multiple documents, point out the pattern.\n"
+                        "8. Be concise. No filler. Bullet points and numbered lists."
                     ),
                 },
                 {
                     "role": "user",
-                    "content": f"Question: {question}\n\n--- DOCUMENTS ---\n\n{context}",
+                    "content": f"Question: {question}\n\n{stats_block}\n\n--- SEARCH RESULTS ---\n\n{context}",
                 },
             ],
-            temperature=0.1,
-            max_tokens=1500,
+            temperature=0.2,
+            max_tokens=2000,
         )
 
         return response.choices[0].message.content, None
@@ -857,29 +941,78 @@ def api_ask():
         expanded_query, related = ai_expand_query(question)
         search_query = expanded_query or question
 
-        # Run the appropriate search
-        error = None
-        if mode == "semantic":
-            results, error = semantic_search(search_query, n_results=limit)
-        elif mode == "email":
-            gmail_results, _ = gmail_style_email_search(search_query, n_results=limit)
-            results = [{"record": {"metadata": r, "text_preview": r.get("body_preview", ""),
-                                    "source": r.get("source", ""), "text_full": r.get("body_preview", "")},
-                         "score": r["score"], "index": r.get("index", -1)} for r in gmail_results]
-        else:
-            results = text_search(search_query, n_results=limit)
+        # Smart multi-search: run multiple strategies to get richer context
+        results = []
+        seen_ids = set()
 
-        if error:
-            return jsonify({"error": error}), 500
+        def _add_results(new_results):
+            for r in new_results:
+                record = r.get("record", r)
+                rec_id = record.get("id", id(record))
+                if rec_id not in seen_ids:
+                    seen_ids.add(rec_id)
+                    results.append(r)
+
+        # Always run text search
+        _add_results(text_search(search_query, n_results=limit))
+
+        # If question mentions email/emails/sent/received, also search emails
+        q_lower = question.lower()
+        if any(w in q_lower for w in ("email", "emails", "sent", "received", "wrote", "mail", "message", "correspondence")):
+            gmail_results, _ = gmail_style_email_search(search_query, n_results=limit)
+            _add_results([{"record": {"metadata": r, "text_preview": r.get("body_preview", ""),
+                                       "source": r.get("source", ""), "text_full": r.get("body_preview", ""),
+                                       "id": r.get("doc_id", "")},
+                            "score": r["score"], "index": r.get("index", -1)} for r in gmail_results])
+
+        # If question mentions a person name (2+ capitalized words), do a name search too
+        import re as _re
+        name_match = _re.findall(r'[A-Z][a-z]+(?:\s+[A-Z][a-z]+)+', question)
+        for nm in name_match[:2]:
+            try:
+                name_results, _ = name_search(nm, n_results=5)
+                _add_results(name_results)
+            except Exception:
+                pass
+
+        # Try semantic search if available (best for conceptual questions)
+        if mode == "semantic" or len(results) < 5:
+            try:
+                sem_results, _ = semantic_search(search_query, n_results=min(limit, 5))
+                _add_results(sem_results)
+            except Exception:
+                pass
+
+        # Sort all results by score descending, take top
+        results.sort(key=lambda r: -r.get("score", 0))
+        results = results[:limit]
 
         # Synthesize answer
         answer, ai_error = ai_ask(question, results)
+
+        # Build source docs list for clickable references
+        sources = []
+        for r in results:
+            record = r.get("record", r)
+            meta = record.get("metadata", {})
+            doc_id = meta.get("doc_id", record.get("id", ""))
+            if doc_id:
+                sources.append({
+                    "doc_id": doc_id,
+                    "source": record.get("source", meta.get("source", "")),
+                    "doc_type": meta.get("doc_type", ""),
+                    "date": meta.get("date", ""),
+                    "from": meta.get("from", ""),
+                    "to": meta.get("to", ""),
+                    "subject": meta.get("subject", ""),
+                })
 
         resp = {
             "answer": answer,
             "expanded_query": expanded_query,
             "related_queries": related or [],
             "sources_used": len(results),
+            "sources": sources,
         }
         if ai_error:
             resp["error"] = ai_error
