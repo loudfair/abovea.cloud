@@ -448,7 +448,7 @@
 
     // Show loading state
     $aiAnswer.style.display = 'block';
-    $aiBody.innerHTML = '<div class="ai-loading"><div class="spinner"></div></div>';
+    $aiBody.innerHTML = '<div class="ai-loading"><p class="ai-loading-main">I can answer that, give me a moment to cast my mind back<span class="loading-dots"></span></p><p class="ai-loading-sub">searching my memory</p></div>';
     $aiRelated.innerHTML = '';
 
     fetch('/api/ask', {
@@ -870,11 +870,11 @@
     });
   });
 
-  // Search on Enter
+  // Enter on hero input calls doAsk (confession mode)
   $input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter') {
       e.preventDefault();
-      doSearch();
+      doAsk();
     }
   });
 
