@@ -11,12 +11,8 @@ RUN pip install --no-cache-dir -r requirements.txt gunicorn
 
 # Copy app code
 COPY . .
+RUN chmod +x start.sh setup.sh
 
-# Download data & build index
-RUN chmod +x setup.sh && bash setup.sh
-
-# Expose port
 EXPOSE 5000
 
-# Run with gunicorn
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "app:app"]
+CMD ["./start.sh"]
