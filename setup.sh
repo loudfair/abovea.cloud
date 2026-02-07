@@ -40,6 +40,9 @@ datasets_to_download = [
     ('theelderemo/FULL_EPSTEIN_INDEX', 'full_index'),
     ('to-be/epstein-emails', 'emails'),
     ('svetfm/epstein-files-nov11-25-house-post-ocr-embeddings', 'embeddings'),
+    ('svetfm/epstein-fbi-files', 'fbi_files'),
+    ('vikash06/EpsteinFiles', 'fbi_ocr'),
+    ('567-labs/jmail-house-oversight', 'house_emails'),
 ]
 
 for name, folder in datasets_to_download:
@@ -81,6 +84,17 @@ wait
 clone_repo "https://github.com/HarleyCoops/TrumpEpsteinFiles.git" "trump-files" &
 wait
 
+clone_repo "https://github.com/LMSBAND/epstein-files-db.git" "epstein-files-db" &
+clone_repo "https://github.com/promexdotme/epstein-justice-files-text.git" "justice-files-text" &
+clone_repo "https://github.com/phelix001/epstein-network.git" "epstein-network" &
+clone_repo "https://github.com/maxandrews/Epstein-doc-explorer.git" "doc-explorer" &
+wait
+
+clone_repo "https://github.com/yung-megafone/Epstein-Files.git" "magnet-links" &
+clone_repo "https://github.com/SvetimFM/epstein-files-visualizations.git" "visualizations" &
+clone_repo "https://github.com/paulgp/epstein-document-search.git" "document-search" &
+wait
+
 # Archive.org
 echo "  Downloading flight logs from Archive.org..."
 mkdir -p downloads/archive/flight-logs
@@ -91,6 +105,37 @@ if [ ! -f "downloads/archive/flight-logs/epstein-flight-logs.pdf" ]; then
 else
     echo "  ✓ Flight logs (already downloaded)"
 fi
+
+echo "  Downloading additional documents from Archive.org..."
+
+mkdir -p downloads/archive/black-book
+if [ ! -f "downloads/archive/black-book/black-book.pdf" ]; then
+    curl -sL -o "downloads/archive/black-book/black-book.pdf" \
+        "https://archive.org/download/jeffrey-epstein-39s-little-black-book-unredacted/Jeffrey%20Epstein%27s%20Little%20Black%20Book%20unredacted.pdf" 2>/dev/null && \
+        echo "  ✓ Black book" || echo "  ✗ Black book (failed)"
+else
+    echo "  ✓ Black book (already downloaded)"
+fi &
+
+mkdir -p downloads/archive/epstein-docs-collection
+if [ ! -f "downloads/archive/epstein-docs-collection/Epstein-Docs.pdf" ]; then
+    curl -sL -o "downloads/archive/epstein-docs-collection/Epstein-Docs.pdf" \
+        "https://ia600705.us.archive.org/21/items/epsteindocs/Epstein-Docs.pdf" 2>/dev/null && \
+        echo "  ✓ Epstein docs collection" || echo "  ✗ Epstein docs collection (failed)"
+else
+    echo "  ✓ Epstein docs collection (already downloaded)"
+fi &
+
+mkdir -p downloads/archive/depositions
+if [ ! -f "downloads/archive/depositions/Edwards-vs-Epstein-depositions.pdf" ]; then
+    curl -sL -o "downloads/archive/depositions/Edwards-vs-Epstein-depositions.pdf" \
+        "https://ia600705.us.archive.org/21/items/epsteindocs/12%23%20Epstein%20deposition%27s%20-%20Edwards%20vs%20Epstein%20%2B%20attachments.pdf" 2>/dev/null && \
+        echo "  ✓ Depositions" || echo "  ✗ Depositions (failed)"
+else
+    echo "  ✓ Depositions (already downloaded)"
+fi &
+
+wait
 
 echo ""
 echo "  Downloads complete."

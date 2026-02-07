@@ -7,6 +7,7 @@ import json
 import os
 import glob
 import hashlib
+import sqlite3
 from pathlib import Path
 from concurrent.futures import ProcessPoolExecutor, as_completed
 
@@ -419,6 +420,482 @@ def parse_trump_files():
     return records
 
 
+def parse_hf_fbi_files():
+    """Parse HuggingFace FBI files dataset (svetfm/epstein-fbi-files)."""
+    console.print("[bold blue]Parsing HF FBI files dataset (236K chunks)...[/]")
+    pq_path = DOWNLOADS / "huggingface" / "fbi_files" / "train.parquet"
+
+    if not pq_path.exists():
+        console.print("  [yellow]FBI files parquet not found, skipping[/]")
+        return []
+
+    df = pd.read_parquet(pq_path)
+
+    # Drop embedding column if present to save memory
+    embed_cols = [c for c in df.columns if "embed" in c.lower()]
+    if embed_cols:
+        df = df.drop(columns=embed_cols)
+
+    # Group by source_file to reconstruct full documents
+    doc_chunks = {}
+    for _, row in df.iterrows():
+        src = str(row.get("source_file", ""))
+        if not src:
+            continue
+        if src not in doc_chunks:
+            doc_chunks[src] = []
+        doc_chunks[src].append({
+            "index": int(row.get("chunk_index", 0)),
+            "text": str(row.get("text", "")),
+        })
+
+    records = []
+    for src, chunks in doc_chunks.items():
+        chunks_sorted = sorted(chunks, key=lambda c: c["index"])
+        full_text = " ".join(c["text"] for c in chunks_sorted if c["text"])
+
+        record = make_record(
+            text=full_text,
+            source="hf-fbi-files",
+            doc_id=src.replace(".txt", "").replace(".pdf", ""),
+            filename=src,
+            doc_type="FBI File",
+        )
+        if record:
+            records.append(record)
+
+    console.print(f"  [green]HF FBI files: {len(records)} documents[/]")
+    return records
+
+
+def parse_hf_fbi_ocr():
+    """Parse HuggingFace FBI OCR dataset (vikash06/EpsteinFiles)."""
+    console.print("[bold blue]Parsing HF FBI OCR dataset...[/]")
+    pq_path = DOWNLOADS / "huggingface" / "fbi_ocr" / "train.parquet"
+
+    if not pq_path.exists():
+        console.print("  [yellow]FBI OCR parquet not found, skipping[/]")
+        return []
+
+    df = pd.read_parquet(pq_path)
+
+    # Be flexible about column names for text content
+    text_col = None
+    for candidate in ["text", "content", "ocr_text", "body", "page_text"]:
+        if candidate in df.columns:
+            text_col = candidate
+            break
+    if text_col is None:
+        # Fall back to first string-like column that isn't an ID
+        for col in df.columns:
+            if col.lower() not in ("id", "filename", "file", "source", "index"):
+                sample = df[col].dropna().head(1)
+                if len(sample) > 0 and isinstance(sample.iloc[0], str) and len(sample.iloc[0]) > 50:
+                    text_col = col
+                    break
+    if text_col is None:
+        console.print(f"  [yellow]Could not identify text column in FBI OCR (cols: {list(df.columns)}), skipping[/]")
+        return []
+
+    # Identify an ID column
+    id_col = None
+    for candidate in ["filename", "id", "file", "doc_id", "name", "source_file"]:
+        if candidate in df.columns:
+            id_col = candidate
+            break
+
+    records = []
+    for idx, row in df.iterrows():
+        text = str(row.get(text_col, ""))
+        doc_id = str(row.get(id_col, idx)) if id_col else str(idx)
+
+        record = make_record(
+            text=text,
+            source="hf-fbi-ocr",
+            doc_id=doc_id,
+            filename=doc_id,
+            doc_type="FBI File",
+        )
+        if record:
+            records.append(record)
+
+    console.print(f"  [green]HF FBI OCR: {len(records)} documents[/]")
+    return records
+
+
+def parse_hf_house_emails():
+    """Parse HuggingFace House Oversight emails (567-labs/jmail-house-oversight)."""
+    console.print("[bold blue]Parsing HF House Oversight emails (3,680 records)...[/]")
+    pq_path = DOWNLOADS / "huggingface" / "house_emails" / "train.parquet"
+
+    if not pq_path.exists():
+        console.print("  [yellow]House emails parquet not found, skipping[/]")
+        return []
+
+    df = pd.read_parquet(pq_path)
+
+    # Identify text column
+    text_col = None
+    for candidate in ["text", "body", "content", "message", "email_body"]:
+        if candidate in df.columns:
+            text_col = candidate
+            break
+    if text_col is None:
+        # Fall back to longest-string column
+        for col in df.columns:
+            sample = df[col].dropna().head(1)
+            if len(sample) > 0 and isinstance(sample.iloc[0], str) and len(sample.iloc[0]) > 50:
+                text_col = col
+                break
+    if text_col is None:
+        console.print(f"  [yellow]Could not identify text column in house emails (cols: {list(df.columns)}), skipping[/]")
+        return []
+
+    records = []
+    for idx, row in df.iterrows():
+        text = str(row.get(text_col, ""))
+        if not text.strip():
+            continue
+
+        people = []
+        from_addr = str(row.get("from", row.get("from_address", row.get("sender", "")))) if any(
+            c in df.columns for c in ("from", "from_address", "sender")
+        ) else ""
+        to_addr = str(row.get("to", row.get("to_address", row.get("recipient", "")))) if any(
+            c in df.columns for c in ("to", "to_address", "recipient")
+        ) else ""
+        subject = str(row.get("subject", row.get("subject_line", ""))) if any(
+            c in df.columns for c in ("subject", "subject_line")
+        ) else ""
+
+        if from_addr and from_addr != "nan":
+            people.append(from_addr)
+        if to_addr and to_addr != "nan":
+            people.append(to_addr)
+
+        record = make_record(
+            text=text,
+            source="hf-house-emails",
+            doc_id=str(row.get("id", row.get("message_id", idx))),
+            people=people,
+            doc_type="Email",
+            extra_meta={
+                "from": from_addr if from_addr != "nan" else "",
+                "to": to_addr if to_addr != "nan" else "",
+                "subject": subject if subject != "nan" else "",
+            },
+        )
+        if record:
+            records.append(record)
+
+    console.print(f"  [green]HF house emails: {len(records)} emails[/]")
+    return records
+
+
+def parse_epstein_files_db():
+    """Parse LMSBAND/epstein-files-db SQLite database."""
+    console.print("[bold blue]Parsing epstein-files-db (SQLite)...[/]")
+    db_dir = DOWNLOADS / "github" / "epstein-files-db"
+
+    if not db_dir.exists():
+        console.print("  [yellow]epstein-files-db dir not found, skipping[/]")
+        return []
+
+    # Find SQLite database files
+    db_files = (
+        list(db_dir.rglob("*.db"))
+        + list(db_dir.rglob("*.sqlite"))
+        + list(db_dir.rglob("*.sqlite3"))
+    )
+    if not db_files:
+        console.print("  [yellow]No SQLite database files found in epstein-files-db, skipping[/]")
+        return []
+
+    records = []
+    for db_path in db_files:
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+
+            # List all tables
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+            console.print(f"  Tables in {db_path.name}: {tables}")
+
+            # Look for tables with text content
+            text_tables = [
+                t for t in tables
+                if any(kw in t.lower() for kw in ("document", "text", "content", "file", "page", "email"))
+            ]
+            if not text_tables:
+                text_tables = tables  # Try all tables
+
+            for table in text_tables:
+                try:
+                    cursor.execute(f"PRAGMA table_info('{table}')")
+                    columns = [row[1] for row in cursor.fetchall()]
+
+                    # Find text column
+                    text_col = None
+                    for candidate in ["text", "content", "body", "ocr_text", "full_text", "page_text"]:
+                        if candidate in columns:
+                            text_col = candidate
+                            break
+                    if text_col is None:
+                        continue
+
+                    # Find ID column
+                    id_col = None
+                    for candidate in ["id", "doc_id", "document_id", "filename", "name"]:
+                        if candidate in columns:
+                            id_col = candidate
+                            break
+
+                    cursor.execute(f"SELECT * FROM '{table}'")
+                    col_names = [desc[0] for desc in cursor.description]
+                    text_idx = col_names.index(text_col)
+                    id_idx = col_names.index(id_col) if id_col else None
+
+                    for row in cursor.fetchall():
+                        text = str(row[text_idx]) if row[text_idx] else ""
+                        doc_id = str(row[id_idx]) if id_idx is not None and row[id_idx] else ""
+
+                        record = make_record(
+                            text=text,
+                            source="epstein-files-db",
+                            doc_id=doc_id or f"{db_path.stem}-{table}",
+                            filename=db_path.name,
+                        )
+                        if record:
+                            records.append(record)
+                except Exception as e:
+                    console.print(f"  [yellow]Error reading table {table}: {e}[/]")
+                    continue
+
+            conn.close()
+        except Exception as e:
+            console.print(f"  [yellow]Error opening {db_path.name}: {e}[/]")
+            continue
+
+    console.print(f"  [green]epstein-files-db: {len(records)} records[/]")
+    return records
+
+
+def parse_justice_files_text():
+    """Parse promexdotme/epstein-justice-files-text plain text files."""
+    console.print("[bold blue]Parsing justice-files-text (TXT files)...[/]")
+    txt_dir = DOWNLOADS / "github" / "justice-files-text"
+
+    if not txt_dir.exists():
+        console.print("  [yellow]justice-files-text dir not found, skipping[/]")
+        return []
+
+    records = []
+    for txt_file in txt_dir.rglob("*.txt"):
+        # Skip README, LICENSE, and other non-content files
+        if txt_file.name.upper().startswith(("README", "LICENSE", "CHANGELOG", "CONTRIBUTING")):
+            continue
+        try:
+            text = txt_file.read_text(encoding="utf-8", errors="replace")
+            if len(text.strip()) < 50:
+                continue
+
+            doc_id = txt_file.stem
+            record = make_record(
+                text=text,
+                source="justice-files-text",
+                doc_id=doc_id,
+                filename=txt_file.name,
+            )
+            if record:
+                records.append(record)
+        except Exception:
+            continue
+
+    console.print(f"  [green]justice-files-text: {len(records)} documents[/]")
+    return records
+
+
+def parse_epstein_network():
+    """Parse phelix001/epstein-network CSV data."""
+    console.print("[bold blue]Parsing epstein-network (CSV data)...[/]")
+    csv_dir = DOWNLOADS / "github" / "epstein-network"
+
+    if not csv_dir.exists():
+        console.print("  [yellow]epstein-network dir not found, skipping[/]")
+        return []
+
+    csv_files = list(csv_dir.rglob("*.csv"))
+    if not csv_files:
+        console.print("  [yellow]No CSV files found in epstein-network, skipping[/]")
+        return []
+
+    records = []
+    for csv_path in csv_files:
+        try:
+            df = pd.read_csv(csv_path, encoding="utf-8", on_bad_lines="skip")
+            cols_lower = {c.lower(): c for c in df.columns}
+
+            # Check if this is a people/contacts CSV
+            if "name" in cols_lower:
+                name_col = cols_lower["name"]
+                for idx, row in df.iterrows():
+                    name = str(row.get(name_col, ""))
+                    if not name or name == "nan":
+                        continue
+
+                    # Build a text representation of the row
+                    parts = [f"Name: {name}"]
+                    for col in df.columns:
+                        if col == name_col:
+                            continue
+                        val = str(row.get(col, ""))
+                        if val and val != "nan":
+                            parts.append(f"{col}: {val}")
+                    text = "\n".join(parts)
+
+                    record = make_record(
+                        text=text,
+                        source="epstein-network",
+                        doc_id=f"{csv_path.stem}-{idx}",
+                        filename=csv_path.name,
+                        people=[name],
+                        extra_meta={"data_type": "network_record"},
+                    )
+                    if record:
+                        records.append(record)
+            else:
+                # Generic CSV — look for text-heavy columns
+                text_col = None
+                for candidate in ["text", "content", "body", "description", "notes"]:
+                    if candidate in cols_lower:
+                        text_col = cols_lower[candidate]
+                        break
+                if text_col is None:
+                    # Try to find the column with the longest average string length
+                    best_col, best_len = None, 0
+                    for col in df.columns:
+                        sample = df[col].dropna().astype(str).head(20)
+                        avg_len = sample.str.len().mean() if len(sample) > 0 else 0
+                        if avg_len > best_len and avg_len > 30:
+                            best_col, best_len = col, avg_len
+                    text_col = best_col
+
+                if text_col:
+                    for idx, row in df.iterrows():
+                        text = str(row.get(text_col, ""))
+                        record = make_record(
+                            text=text,
+                            source="epstein-network",
+                            doc_id=f"{csv_path.stem}-{idx}",
+                            filename=csv_path.name,
+                        )
+                        if record:
+                            records.append(record)
+        except Exception as e:
+            console.print(f"  [yellow]Error reading {csv_path.name}: {e}[/]")
+            continue
+
+    console.print(f"  [green]epstein-network: {len(records)} records[/]")
+    return records
+
+
+def parse_doc_explorer():
+    """Parse maxandrews/Epstein-doc-explorer SQLite database."""
+    console.print("[bold blue]Parsing doc-explorer (SQLite)...[/]")
+    db_dir = DOWNLOADS / "github" / "doc-explorer"
+
+    if not db_dir.exists():
+        console.print("  [yellow]doc-explorer dir not found, skipping[/]")
+        return []
+
+    db_files = list(db_dir.rglob("*.db")) + list(db_dir.rglob("*.sqlite"))
+    if not db_files:
+        console.print("  [yellow]No SQLite database files found in doc-explorer, skipping[/]")
+        return []
+
+    records = []
+    for db_path in db_files:
+        try:
+            conn = sqlite3.connect(str(db_path))
+            cursor = conn.cursor()
+
+            cursor.execute("SELECT name FROM sqlite_master WHERE type='table'")
+            tables = [row[0] for row in cursor.fetchall()]
+            console.print(f"  Tables in {db_path.name}: {tables}")
+
+            for table in tables:
+                try:
+                    cursor.execute(f"PRAGMA table_info('{table}')")
+                    columns = [row[1] for row in cursor.fetchall()]
+                    cols_lower = {c.lower(): c for c in columns}
+
+                    # Find text column
+                    text_col = None
+                    for candidate in ["text", "content", "body", "full_text", "message", "ocr_text"]:
+                        if candidate in cols_lower:
+                            text_col = cols_lower[candidate]
+                            break
+                    if text_col is None:
+                        continue
+
+                    # Check for email-like fields
+                    from_col = cols_lower.get("from", cols_lower.get("from_address", cols_lower.get("sender")))
+                    to_col = cols_lower.get("to", cols_lower.get("to_address", cols_lower.get("recipient")))
+                    id_col = cols_lower.get("id", cols_lower.get("doc_id", cols_lower.get("document_id")))
+
+                    cursor.execute(f"SELECT * FROM '{table}'")
+                    col_names = [desc[0] for desc in cursor.description]
+
+                    for row_data in cursor.fetchall():
+                        row_dict = dict(zip(col_names, row_data))
+                        text = str(row_dict.get(text_col, ""))
+                        if not text.strip():
+                            continue
+
+                        from_val = str(row_dict.get(from_col, "")) if from_col else ""
+                        to_val = str(row_dict.get(to_col, "")) if to_col else ""
+                        doc_id_val = str(row_dict.get(id_col, "")) if id_col else ""
+
+                        has_email_fields = from_col is not None or to_col is not None
+                        doc_type = "Email" if has_email_fields else ""
+
+                        people = []
+                        if from_val and from_val != "None" and from_val != "nan":
+                            people.append(from_val)
+                        if to_val and to_val != "None" and to_val != "nan":
+                            people.append(to_val)
+
+                        extra = {}
+                        if from_val and from_val != "None":
+                            extra["from"] = from_val
+                        if to_val and to_val != "None":
+                            extra["to"] = to_val
+
+                        record = make_record(
+                            text=text,
+                            source="doc-explorer",
+                            doc_id=doc_id_val or f"{db_path.stem}-{table}",
+                            filename=db_path.name,
+                            people=people,
+                            doc_type=doc_type,
+                            extra_meta=extra if extra else None,
+                        )
+                        if record:
+                            records.append(record)
+                except Exception as e:
+                    console.print(f"  [yellow]Error reading table {table}: {e}[/]")
+                    continue
+
+            conn.close()
+        except Exception as e:
+            console.print(f"  [yellow]Error opening {db_path.name}: {e}[/]")
+            continue
+
+    console.print(f"  [green]doc-explorer: {len(records)} records[/]")
+    return records
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -435,6 +912,13 @@ def main():
         parse_hf_full_index,
         parse_markramm,
         parse_trump_files,
+        parse_hf_fbi_files,
+        parse_hf_fbi_ocr,
+        parse_hf_house_emails,
+        parse_epstein_files_db,
+        parse_justice_files_text,
+        parse_epstein_network,
+        parse_doc_explorer,
     ]
     
     for parser in parsers:
@@ -460,6 +944,13 @@ def main():
         "hf-embeddings": 4,
         "markramm": 5,
         "hf-emails": 6,
+        "hf-fbi-files": 7,
+        "hf-fbi-ocr": 8,
+        "hf-house-emails": 9,
+        "justice-files-text": 10,
+        "epstein-files-db": 11,
+        "epstein-network": 12,
+        "doc-explorer": 13,
     }
     
     # Sort by source priority so richer records are kept
