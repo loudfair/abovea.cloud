@@ -4,6 +4,7 @@ pyarrow
 numpy
 faiss-cpu
 openai
+anthropic
 rich
 click
 flask
