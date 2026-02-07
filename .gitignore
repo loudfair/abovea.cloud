@@ -1,0 +1,21 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+.env
+
+# Downloaded raw data (too large for git — rebuilt by setup.sh)
+downloads/
+
+# Generated data (rebuilt by setup.sh)
+data/
+
+# Temp download script
+download_hf.py
+
+# HuggingFace cache
+.cache/
+
+# OS
+.DS_Store
+Thumbs.db

@@ -1,0 +1,8 @@
+datasets
+pandas
+pyarrow
+chromadb
+openai
+rich
+click
+xxhash
