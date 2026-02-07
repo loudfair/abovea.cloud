@@ -1,0 +1,26 @@
+[Unit]
+Description=Epstein Files Search Engine
+After=network.target
+
+[Service]
+Type=notify
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/abovea.cloud
+Environment="PATH=/opt/abovea.cloud/venv/bin:/usr/bin:/bin"
+EnvironmentFile=-/opt/abovea.cloud/.env
+ExecStart=/opt/abovea.cloud/venv/bin/gunicorn \
+    --bind 127.0.0.1:5000 \
+    --workers 3 \
+    --timeout 120 \
+    --access-logfile /var/log/epstein-search/access.log \
+    --error-logfile /var/log/epstein-search/error.log \
+    app:app
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=on-failure
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

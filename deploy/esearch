@@ -1,0 +1,225 @@
+#!/bin/bash
+# ═══════════════════════════════════════════════════════════════════════════════
+#  esearch — CLI management tool for Epstein Files Search Engine on AWS
+#
+#  Install:
+#    sudo ln -sf /opt/abovea.cloud/deploy/esearch /usr/local/bin/esearch
+#
+#  Usage:
+#    esearch status          Show service status
+#    esearch start           Start the service
+#    esearch stop            Stop the service
+#    esearch restart         Restart the service
+#    esearch logs            Follow live logs
+#    esearch logs -n 50      Show last 50 log lines
+#    esearch search <query>  Run a CLI search
+#    esearch stats           Show index statistics
+#    esearch env             Edit environment variables
+#    esearch rebuild         Re-run full data setup
+#    esearch update          Pull latest code and restart
+#    esearch ssl <domain>    Set up HTTPS with Let's Encrypt
+#    esearch nginx-test      Test nginx configuration
+# ═══════════════════════════════════════════════════════════════════════════════
+
+set -e
+
+APP_DIR="/opt/abovea.cloud"
+SERVICE="epstein-search"
+VENV="$APP_DIR/venv/bin"
+
+# Colors
+RED='\033[0;31m'
+GREEN='\033[0;32m'
+YELLOW='\033[1;33m'
+NC='\033[0m' # No Color
+
+usage() {
+    echo ""
+    echo "  esearch — Epstein Files Search Engine CLI"
+    echo ""
+    echo "  Service commands:"
+    echo "    esearch status            Show service status"
+    echo "    esearch start             Start the service"
+    echo "    esearch stop              Stop the service"
+    echo "    esearch restart           Restart the service"
+    echo "    esearch logs [-n NUM]     View logs (default: follow live)"
+    echo ""
+    echo "  Search commands:"
+    echo "    esearch search <query>    Text search"
+    echo "    esearch search --name <n> Name search"
+    echo "    esearch search --ask <q>  AI-powered answer"
+    echo "    esearch stats             Index statistics"
+    echo ""
+    echo "  Admin commands:"
+    echo "    esearch env               Edit .env file"
+    echo "    esearch rebuild           Re-download data and rebuild index"
+    echo "    esearch update            Git pull and restart"
+    echo "    esearch ssl <domain>      Set up HTTPS via Let's Encrypt"
+    echo "    esearch nginx-test        Test nginx configuration"
+    echo ""
+}
+
+cmd_status() {
+    echo ""
+    echo "  Service:"
+    if sudo systemctl is-active --quiet "$SERVICE"; then
+        echo -e "    ${GREEN}● running${NC}"
+    else
+        echo -e "    ${RED}● stopped${NC}"
+    fi
+    sudo systemctl status "$SERVICE" --no-pager -l 2>/dev/null | head -15 || true
+
+    echo ""
+    echo "  Nginx:"
+    if sudo systemctl is-active --quiet nginx; then
+        echo -e "    ${GREEN}● running${NC}"
+    else
+        echo -e "    ${RED}● stopped${NC}"
+    fi
+
+    echo ""
+    echo "  Disk usage:"
+    du -sh "$APP_DIR/data" 2>/dev/null | awk '{print "    Data: " $1}' || echo "    Data: not found"
+    du -sh "$APP_DIR/venv" 2>/dev/null | awk '{print "    Venv: " $1}' || echo "    Venv: not found"
+
+    echo ""
+    echo "  Index files:"
+    if [ -f "$APP_DIR/data/index/vectors.faiss" ]; then
+        echo -e "    ${GREEN}✓ vectors.faiss${NC}"
+    else
+        echo -e "    ${RED}✗ vectors.faiss missing${NC}"
+    fi
+    if [ -f "$APP_DIR/data/index/metadata.pkl" ]; then
+        echo -e "    ${GREEN}✓ metadata.pkl${NC}"
+    else
+        echo -e "    ${RED}✗ metadata.pkl missing${NC}"
+    fi
+    if [ -f "$APP_DIR/data/index/search_index.pkl" ]; then
+        echo -e "    ${GREEN}✓ search_index.pkl${NC}"
+    else
+        echo -e "    ${RED}✗ search_index.pkl missing${NC}"
+    fi
+    echo ""
+}
+
+cmd_start() {
+    sudo systemctl start "$SERVICE"
+    echo -e "  ${GREEN}✓ Service started${NC}"
+}
+
+cmd_stop() {
+    sudo systemctl stop "$SERVICE"
+    echo -e "  ${YELLOW}● Service stopped${NC}"
+}
+
+cmd_restart() {
+    sudo systemctl restart "$SERVICE"
+    sleep 1
+    if sudo systemctl is-active --quiet "$SERVICE"; then
+        echo -e "  ${GREEN}✓ Service restarted${NC}"
+    else
+        echo -e "  ${RED}✗ Service failed to restart${NC}"
+        echo "  Check logs: esearch logs -n 20"
+    fi
+}
+
+cmd_logs() {
+    if [ "$1" = "-n" ] && [ -n "$2" ]; then
+        sudo journalctl -u "$SERVICE" --no-pager -n "$2"
+    else
+        sudo journalctl -u "$SERVICE" -f
+    fi
+}
+
+cmd_search() {
+    cd "$APP_DIR"
+    "$VENV/python" search.py "$@"
+}
+
+cmd_stats() {
+    cd "$APP_DIR"
+    "$VENV/python" search.py --stats
+}
+
+cmd_env() {
+    if [ ! -f "$APP_DIR/.env" ]; then
+        echo "# Epstein Files Search — Environment Variables" | sudo tee "$APP_DIR/.env" > /dev/null
+        echo "# OPENAI_API_KEY=sk-..." | sudo tee -a "$APP_DIR/.env" > /dev/null
+        echo "# SITE_PASSWORD=" | sudo tee -a "$APP_DIR/.env" > /dev/null
+        echo "# FLASK_SECRET_KEY=" | sudo tee -a "$APP_DIR/.env" > /dev/null
+        sudo chown www-data:www-data "$APP_DIR/.env"
+        sudo chmod 600 "$APP_DIR/.env"
+    fi
+    sudo "${EDITOR:-nano}" "$APP_DIR/.env"
+    echo ""
+    echo -e "  ${YELLOW}Restart the service to apply changes:${NC}"
+    echo "    esearch restart"
+}
+
+cmd_rebuild() {
+    echo -e "  ${YELLOW}This will re-download all data and rebuild the index.${NC}"
+    read -p "  Continue? [y/N] " -n 1 -r
+    echo ""
+    if [[ $REPLY =~ ^[Yy]$ ]]; then
+        cd "$APP_DIR"
+        sudo -u www-data bash setup.sh
+        sudo systemctl restart "$SERVICE"
+        echo -e "  ${GREEN}✓ Rebuild complete, service restarted${NC}"
+    fi
+}
+
+cmd_update() {
+    cd "$APP_DIR"
+    sudo -u www-data git pull origin main
+    sudo -u www-data "$VENV/pip" install -q -r requirements.txt
+    sudo systemctl restart "$SERVICE"
+    echo -e "  ${GREEN}✓ Updated and restarted${NC}"
+}
+
+cmd_ssl() {
+    local domain="$1"
+    if [ -z "$domain" ]; then
+        echo "  Usage: esearch ssl your-domain.com"
+        exit 1
+    fi
+
+    echo "  Installing certbot..."
+    sudo apt-get install -y -qq certbot python3-certbot-nginx > /dev/null 2>&1
+
+    # Update nginx server_name
+    sudo sed -i "s/server_name _;/server_name ${domain};/" /etc/nginx/sites-available/epstein-search
+    sudo nginx -t && sudo systemctl reload nginx
+
+    echo "  Running certbot..."
+    sudo certbot --nginx -d "$domain" --non-interactive --agree-tos --register-unsafely-without-email
+
+    echo -e "  ${GREEN}✓ HTTPS enabled for ${domain}${NC}"
+    echo "  Auto-renewal is configured via certbot timer."
+}
+
+cmd_nginx_test() {
+    sudo nginx -t
+}
+
+# ─── Main ────────────────────────────────────────────────────────────────────
+
+case "${1:-}" in
+    status)     cmd_status ;;
+    start)      cmd_start ;;
+    stop)       cmd_stop ;;
+    restart)    cmd_restart ;;
+    logs)       shift; cmd_logs "$@" ;;
+    search)     shift; cmd_search "$@" ;;
+    stats)      cmd_stats ;;
+    env)        cmd_env ;;
+    rebuild)    cmd_rebuild ;;
+    update)     cmd_update ;;
+    ssl)        cmd_ssl "$2" ;;
+    nginx-test) cmd_nginx_test ;;
+    help|--help|-h|"")  usage ;;
+    *)
+        echo -e "  ${RED}Unknown command: $1${NC}"
+        usage
+        exit 1
+        ;;
+esac
