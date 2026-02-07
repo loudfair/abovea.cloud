@@ -1,21 +1,63 @@
+# Environment & Secrets
+.env
+.env.local
+.env.*.local
+.env.production
+.env.staging
+*.env
+secrets.txt
+*secrets*.txt
+*credentials*.txt
+*credentials*.json
+*keys*.json
+.secrets/
+.credentials/
+
+# OS Files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+Icon
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.cursor/
+.cursorrules
+
+# Logs
+*.log
+logs/
+
+# Temporary
+*.tmp
+*.temp
+*.bak
+
 # Python
 venv/
 __pycache__/
 *.pyc
-.env
+*.pyo
+*.egg-info/
+dist/
+build/
 
-# Downloaded raw data (too large for git — rebuilt by setup.sh)
+# Downloaded raw data (rebuilt by setup.sh)
 downloads/
 
 # Generated data (rebuilt by setup.sh)
 data/
 
-# Temp download script
-download_hf.py
-
 # HuggingFace cache
 .cache/
 
-# OS
-.DS_Store
-Thumbs.db
+# Temp scripts
+download_hf.py

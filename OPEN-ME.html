@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Epstein Files Search Engine</title>
+    <script src="https://cdn.jsdelivr.net/npm/mermaid/dist/mermaid.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; background: #1a1a2e; color: #fff; padding: 40px; max-width: 1000px; margin: 0 auto; }
+        h1 { color: #4a9eff; }
+        h2 { color: #a855f7; margin-top: 30px; }
+        .box { background: #2d2d44; padding: 20px; border-radius: 10px; margin: 20px 0; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; border: 1px solid #444; text-align: left; }
+        th { background: #3d3d5c; }
+        code { background: #000; padding: 2px 6px; border-radius: 4px; }
+        pre code { background: none; padding: 0; }
+        ul { line-height: 1.8; }
+        .stat { font-size: 2em; color: #4a9eff; font-weight: bold; }
+        .stat-label { color: #888; font-size: 0.9em; }
+        .stats-grid { display: grid; grid-template-columns: repeat(4, 1fr); gap: 15px; text-align: center; }
+        .stat-box { background: #3d3d5c; padding: 15px; border-radius: 8px; }
+    </style>
+</head>
+<body>
+    <h1>Epstein Files Search Engine</h1>
+    <p>Unified local search across 63,494 documents from 7 open-source archives of the Jeffrey Epstein case files.</p>
+
+    <div class="stats-grid">
+        <div class="stat-box">
+            <div class="stat">63,494</div>
+            <div class="stat-label">Documents</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat">12,761</div>
+            <div class="stat-label">People Indexed</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat">4,833</div>
+            <div class="stat-label">Emails</div>
+        </div>
+        <div class="stat-box">
+            <div class="stat">$0</div>
+            <div class="stat-label">Cost to Run</div>
+        </div>
+    </div>
+
+    <h2>What's In This Repo</h2>
+    <div class="box">
+        <table>
+            <tr><th>File</th><th>What It Does</th></tr>
+            <tr><td><code>setup.sh</code></td><td>One-command setup &mdash; downloads all data, normalizes, builds index</td></tr>
+            <tr><td><code>search.py</code></td><td>CLI search tool &mdash; text, name, email, and AI-powered queries</td></tr>
+            <tr><td><code>normalize.py</code></td><td>Parses 7 source formats into unified deduplicated corpus</td></tr>
+            <tr><td><code>build_index.py</code></td><td>Builds FAISS vector index + inverted text/name indexes</td></tr>
+            <tr><td><code>requirements.txt</code></td><td>Python dependencies</td></tr>
+            <tr><td><code>README.md</code></td><td>Full documentation</td></tr>
+            <tr><td><code>DIAGRAM.mmd</code></td><td>Mermaid architecture diagram</td></tr>
+            <tr><td><code>OPEN-ME.html</code></td><td>This file &mdash; visual overview</td></tr>
+        </table>
+    </div>
+
+    <h2>Architecture</h2>
+    <div class="box">
+        <pre class="mermaid">
+flowchart LR
+    subgraph sources ["7 Data Sources"]
+        S1["HuggingFace x3"]
+        S2["GitHub x4"]
+    end
+    subgraph pipeline ["Pipeline"]
+        A["setup.sh\nDownload"] --> B["normalize.py\nParse + Dedupe"]
+        B --> C["build_index.py\nFAISS + Text Index"]
+    end
+    subgraph search ["Search"]
+        D["search.py\nCLI"]
+        E["GPT-4o-mini\nAI Answers"]
+    end
+    S1 --> A
+    S2 --> A
+    C --> D
+    D --> E
+        </pre>
+    </div>
+
+    <h2>Quick Start</h2>
+    <div class="box">
+        <ul>
+            <li>Clone: <code>git clone https://github.com/loudfair/abovea.cloud.git</code></li>
+            <li>Setup: <code>cd abovea.cloud && ./setup.sh</code></li>
+            <li>Search: <code>source venv/bin/activate && python search.py "flight logs"</code></li>
+            <li>By name: <code>python search.py --name "Ghislaine Maxwell"</code></li>
+            <li>Emails: <code>python search.py --email --from "epstein"</code></li>
+            <li>AI answer: <code>python search.py --ask "Who visited the island?"</code></li>
+        </ul>
+    </div>
+
+    <h2>Data Sources</h2>
+    <div class="box">
+        <table>
+            <tr><th>Source</th><th>Documents</th><th>Description</th></tr>
+            <tr><td>epfiles</td><td>23,103</td><td>Pre-chunked JSONL from House Oversight docs</td></tr>
+            <tr><td>HuggingFace embeddings</td><td>22,617</td><td>OCR'd text with 768-dim vector embeddings</td></tr>
+            <tr><td>epstein-docs</td><td>7,508</td><td>OCR'd JSON with extracted entities + AI summaries</td></tr>
+            <tr><td>HuggingFace full index</td><td>3,981</td><td>Grand jury and DOJ documents</td></tr>
+            <tr><td>HuggingFace emails</td><td>3,401</td><td>Structured email metadata</td></tr>
+            <tr><td>trump-files</td><td>2,884</td><td>Gemini-processed extractions</td></tr>
+        </table>
+    </div>
+
+    <script>mermaid.initialize({ startOnLoad: true, theme: 'dark' });</script>
+</body>
+</html>

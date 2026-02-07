@@ -1,0 +1,42 @@
+flowchart TB
+    subgraph SOURCES["Data Sources (7 Archives)"]
+        HF1["HuggingFace Embeddings\n69K chunks + vectors"]
+        HF2["HuggingFace Emails\n4,272 structured emails"]
+        HF3["HuggingFace Full Index\n8,531 docs"]
+        GH1["epstein-docs\n29K JSON + entities"]
+        GH2["epfiles\n23K JSONL chunks"]
+        GH3["markramm\n2,895 TXT files"]
+        GH4["trump-files\n5,790 extractions"]
+    end
+
+    subgraph PIPELINE["Processing Pipeline"]
+        DL["setup.sh\nParallel Download"]
+        NORM["normalize.py\nParse + Deduplicate"]
+        IDX["build_index.py\nFAISS + Inverted Index"]
+    end
+
+    subgraph OUTPUT["Search Engine"]
+        CORPUS["corpus.jsonl\n63,494 unique docs"]
+        FAISS["FAISS Vector Index\n51,751 embeddings"]
+        TEXT["Text + Name Index\n226,650 words\n12,761 people"]
+        CLI["search.py\nCLI Interface"]
+        AI["GPT-4o-mini\nAI Synthesis"]
+    end
+
+    HF1 --> DL
+    HF2 --> DL
+    HF3 --> DL
+    GH1 --> DL
+    GH2 --> DL
+    GH3 --> DL
+    GH4 --> DL
+
+    DL --> NORM
+    NORM --> CORPUS
+    CORPUS --> IDX
+    IDX --> FAISS
+    IDX --> TEXT
+
+    FAISS --> CLI
+    TEXT --> CLI
+    CLI --> AI
