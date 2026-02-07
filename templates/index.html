@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Epstein Files Search</title>
+    <title>Epstein Files</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
@@ -11,7 +11,7 @@
     <header>
         <div class="header-inner">
             <h1>E P S T E I N &ensp; F I L E S</h1>
-            <p class="subtitle">63,494 documents from 7 public archives &mdash; DOJ, House Oversight, FBI</p>
+            <p class="jeff-statement">I left <span id="stat-pages">3,633,563</span> files on earth.<br>I'm here to answer for them.</p>
         </div>
     </header>
 
@@ -20,19 +20,19 @@
         <section class="stats-bar" id="stats-bar">
             <div class="stat-item">
                 <span class="stat-value" id="stat-docs">&mdash;</span>
-                <span class="stat-label">D O C U M E N T S</span>
+                <span class="stat-label">I N D E X E D</span>
             </div>
             <div class="stat-item">
                 <span class="stat-value" id="stat-people">&mdash;</span>
-                <span class="stat-label">P E O P L E</span>
+                <span class="stat-label">N A M E S</span>
             </div>
             <div class="stat-item">
                 <span class="stat-value" id="stat-words">&mdash;</span>
-                <span class="stat-label">W O R D S &ensp; I N D E X E D</span>
+                <span class="stat-label">W O R D S</span>
             </div>
             <div class="stat-item">
                 <span class="stat-value" id="stat-vectors">&mdash;</span>
-                <span class="stat-label">E M B E D D I N G S</span>
+                <span class="stat-label">C O N N E C T I O N S</span>
             </div>
         </section>
 
@@ -43,13 +43,15 @@
                 <button class="mode-btn" data-mode="name">Person</button>
                 <button class="mode-btn" data-mode="email">Email</button>
                 <button class="mode-btn" data-mode="people">People Index</button>
+                <button class="mode-btn" data-mode="browse">Browse All</button>
+                <button class="mode-btn" data-mode="doj">Case Files</button>
             </nav>
 
             <div class="search-box">
                 <div class="search-row">
-                    <input type="text" id="search-input" placeholder="Search 63K documents..." autofocus>
+                    <input type="text" id="search-input" placeholder="Ask me anything..." autofocus>
                     <button id="search-btn" onclick="doSearch()">SEARCH</button>
-                    <button id="ask-btn" onclick="doAsk()" title="AI-powered analysis (~$0.001)">ASK JEFF</button>
+                    <button id="ask-btn" onclick="doAsk()">ASK JEFF</button>
                 </div>
 
                 <div class="search-row" id="email-fields" style="display:none">
@@ -87,7 +89,7 @@
         <section id="results-area">
             <div id="ai-answer" class="ai-answer" style="display:none">
                 <div class="ai-answer-header">
-                    <span class="ai-label">AI ANALYSIS</span>
+                    <span class="ai-label">J E F F</span>
                     <button class="ai-close" onclick="document.getElementById('ai-answer').style.display='none'">&times;</button>
                 </div>
                 <div id="ai-answer-body" class="ai-answer-body"></div>
@@ -107,21 +109,14 @@
             </div>
 
             <div id="empty-state" class="empty-state">
-                <div class="empty-icon" aria-hidden="true">
-                    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
-                        <circle cx="22" cy="22" r="14" stroke="currentColor" stroke-width="1.5"/>
-                        <line x1="32.5" y1="32.5" x2="42" y2="42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
-                    </svg>
-                </div>
-                <p>Enter a query to explore the Epstein case files.</p>
+                <p class="jeff-cta">Ask me anything. I'm honest now.</p>
                 <div class="suggestions">
-                    <button class="suggestion" onclick="quickSearch('flight logs')">flight logs</button>
-                    <button class="suggestion" onclick="quickSearch('Ghislaine Maxwell', 'name')">Ghislaine Maxwell</button>
-                    <button class="suggestion" onclick="quickSearch('palm beach police')">palm beach police</button>
-                    <button class="suggestion" onclick="quickSearch('from:epstein', 'email')">emails from epstein</button>
-                    <button class="suggestion" onclick="quickSearch('has:attachment', 'email')">emails with attachments</button>
-                    <button class="suggestion" onclick="quickSearch('grand jury')">grand jury</button>
-                    <button class="suggestion" onclick="quickSearch('island property')">island property</button>
+                    <button class="suggestion" onclick="doAskDirect('Who did you email the most?')">Who did you email the most?</button>
+                    <button class="suggestion" onclick="doAskDirect('Tell me about Ghislaine Maxwell')">Tell me about Ghislaine Maxwell</button>
+                    <button class="suggestion" onclick="doAskDirect('Who flew on your plane?')">Who flew on your plane?</button>
+                    <button class="suggestion" onclick="doAskDirect('What happened at Palm Beach?')">What happened at Palm Beach?</button>
+                    <button class="suggestion" onclick="quickSearch('from:epstein', 'email')">My emails</button>
+                    <button class="suggestion" onclick="doAskDirect('Who are the most mentioned people in your files?')">Most mentioned people</button>
                 </div>
             </div>
         </section>
@@ -139,7 +134,7 @@
     </div>
 
     <footer>
-        <p>Data from public U.S. government releases &middot; <a href="https://github.com/loudfair/abovea.cloud" target="_blank" rel="noopener">GitHub</a></p>
+        <p>All information sourced from public records</p>
     </footer>
 
     <script src="/static/app.js"></script>
