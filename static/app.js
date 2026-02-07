@@ -5,14 +5,12 @@
 
   // ── DOM refs ──────────────────────────────────────────────────────────────
   const $input       = document.getElementById('search-input');
-  const $searchBtn   = document.getElementById('search-btn');
   const $emailFields = document.getElementById('email-fields');
   const $emailFrom   = document.getElementById('email-from');
   const $emailTo     = document.getElementById('email-to');
   const $limit       = document.getElementById('result-limit');
   const $typeFilter  = document.getElementById('type-filter');
   const $typeLabel   = document.getElementById('type-filter-label');
-  const $resultsArea = document.getElementById('results-area');
   const $header      = document.getElementById('results-header');
   const $count       = document.getElementById('results-count');
   const $matched     = document.getElementById('matched-names');
