@@ -193,12 +193,9 @@ def auth():
     _login_attempts[ip] = attempts
 
     if len(attempts) >= _LOGIN_MAX:
-        remaining = int(_LOGIN_WINDOW - (now - attempts[0]))
-        hours = remaining // 3600
-        mins = (remaining % 3600) // 60
         return jsonify({
             "ok": False,
-            "error": f"Too many attempts. Try again in {hours}h {mins}m."
+            "error": "Too many attempts. Try again in a few weeks."
         }), 429
 
     data = request.get_json(force=True, silent=True) or {}
