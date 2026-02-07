@@ -138,7 +138,7 @@ def build_index(records, precomputed_embeddings):
         faiss.write_index(index, str(FAISS_INDEX_PATH))
         console.print(f"  [green]FAISS index: {index.ntotal} vectors, dim={EMBEDDING_DIM}[/]")
     
-    # Build metadata store
+    # Build metadata store (previews only — full text stored separately)
     console.print("[bold blue]Building metadata index...[/]")
     
     # For FAISS-indexed records, store metadata in order matching the index
@@ -147,12 +147,20 @@ def build_index(records, precomputed_embeddings):
         "text_only": [],  # records without embeddings
     }
     
+    # Write full text to a separate line-indexed file (one JSON per line)
+    # This avoids loading all full text into the pickle (which blows RAM)
+    fulltext_path = INDEX_DIR / "fulltext.jsonl"
+    all_ordered = indexed_records + text_only_records
+    
+    with open(fulltext_path, "w") as ft:
+        for record in all_ordered:
+            ft.write(json.dumps(record["text"]) + "\n")
+    
     for record in indexed_records:
         metadata_store["indexed"].append({
             "id": record["id"],
             "source": record["source"],
             "text_preview": record["text"][:500],
-            "text_full": record["text"],
             "metadata": record["metadata"],
         })
     
@@ -161,12 +169,13 @@ def build_index(records, precomputed_embeddings):
             "id": record["id"],
             "source": record["source"],
             "text_preview": record["text"][:500],
-            "text_full": record["text"],
             "metadata": record["metadata"],
         })
     
     with open(METADATA_PATH, "wb") as f:
         pickle.dump(metadata_store, f)
+    
+    console.print(f"  Full text: {fulltext_path} ({fulltext_path.stat().st_size / (1024*1024):.1f} MB)")
     
     # Build text search index (inverted index of words -> record indices)
     console.print("[bold blue]Building text search index...[/]")

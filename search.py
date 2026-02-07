@@ -37,6 +37,7 @@ CORPUS_PATH = BASE / "data" / "normalized" / "corpus.jsonl"
 _faiss_index = None
 _metadata = None
 _search_index = None
+_fulltext_offsets = None
 
 
 def get_faiss_index():
@@ -62,17 +63,57 @@ def get_search_index():
     return _search_index
 
 
+def _build_fulltext_offsets():
+    """Build byte-offset index for fulltext.jsonl for O(1) line lookups."""
+    global _fulltext_offsets
+    if _fulltext_offsets is not None:
+        return
+    fulltext_path = INDEX_DIR / "fulltext.jsonl"
+    if not fulltext_path.exists():
+        _fulltext_offsets = []
+        return
+    offsets = []
+    with open(fulltext_path, "rb") as f:
+        while True:
+            pos = f.tell()
+            line = f.readline()
+            if not line:
+                break
+            offsets.append(pos)
+    _fulltext_offsets = offsets
+
+
+def get_full_text(idx: int) -> str:
+    """Get full text for a record by index, reading from fulltext.jsonl."""
+    _build_fulltext_offsets()
+    if not _fulltext_offsets or idx < 0 or idx >= len(_fulltext_offsets):
+        return ""
+    fulltext_path = INDEX_DIR / "fulltext.jsonl"
+    with open(fulltext_path, "r") as f:
+        f.seek(_fulltext_offsets[idx])
+        line = f.readline()
+        try:
+            return json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            return line.strip()
+
+
 def get_record(idx: int):
     """Get a record by its position in the combined (indexed + text_only) list."""
     meta = get_metadata()
     indexed_count = len(meta["indexed"])
     if idx < indexed_count:
-        return meta["indexed"][idx]
+        record = meta["indexed"][idx]
     else:
         text_idx = idx - indexed_count
         if text_idx < len(meta["text_only"]):
-            return meta["text_only"][text_idx]
-    return None
+            record = meta["text_only"][text_idx]
+        else:
+            return None
+    # Add text_full on demand if not present (new format uses separate file)
+    if "text_full" not in record:
+        record["text_full"] = record.get("text_preview", "")
+    return record
 
 
 # ─── Search Functions ─────────────────────────────────────────────────────────
@@ -329,8 +370,11 @@ def format_result(result, rank: int, full: bool = False):
             parts.append(f"Subject: {meta['subject']}")
         body_parts.append("[bold]Email:[/bold] " + " | ".join(parts))
     
-    # Text preview
-    text = record.get("text_full", "") if full else record.get("text_preview", "")
+    # Text preview (load full text from file on demand)
+    if full:
+        text = get_full_text(result.get("index", -1)) or record.get("text_full", "") or record.get("text_preview", "")
+    else:
+        text = record.get("text_preview", "")
     if text:
         preview = text if full else text[:400]
         preview = preview.replace("\n", " ")

@@ -33,6 +33,7 @@ app = Flask(__name__, template_folder=str(BASE / "templates"), static_folder=str
 _faiss_index = None
 _metadata = None
 _search_index = None
+_fulltext_offsets = None
 
 
 def get_faiss_index():
@@ -60,16 +61,52 @@ def get_search_index():
     return _search_index
 
 
+def _build_fulltext_offsets():
+    global _fulltext_offsets
+    if _fulltext_offsets is not None:
+        return
+    fulltext_path = INDEX_DIR / "fulltext.jsonl"
+    if not fulltext_path.exists():
+        _fulltext_offsets = []
+        return
+    offsets = []
+    with open(fulltext_path, "rb") as f:
+        while True:
+            pos = f.tell()
+            line = f.readline()
+            if not line:
+                break
+            offsets.append(pos)
+    _fulltext_offsets = offsets
+
+
+def get_full_text(idx: int) -> str:
+    _build_fulltext_offsets()
+    if not _fulltext_offsets or idx < 0 or idx >= len(_fulltext_offsets):
+        return ""
+    with open(INDEX_DIR / "fulltext.jsonl", "r") as f:
+        f.seek(_fulltext_offsets[idx])
+        line = f.readline()
+        try:
+            return json.loads(line)
+        except (json.JSONDecodeError, ValueError):
+            return line.strip()
+
+
 def get_record(idx: int):
     meta = get_metadata()
     indexed_count = len(meta["indexed"])
     if idx < indexed_count:
-        return meta["indexed"][idx]
+        record = meta["indexed"][idx]
     else:
         text_idx = idx - indexed_count
         if text_idx < len(meta["text_only"]):
-            return meta["text_only"][text_idx]
-    return None
+            record = meta["text_only"][text_idx]
+        else:
+            return None
+    if "text_full" not in record:
+        record["text_full"] = record.get("text_preview", "")
+    return record
 
 
 # ─── Search Functions ─────────────────────────────────────────────────────────
@@ -300,6 +337,8 @@ def list_people(filter_str: str = None, limit: int = 100):
 def serialize_result(r):
     record = r["record"]
     meta = record.get("metadata", {})
+    idx = r.get("index", -1)
+    full_text = get_full_text(idx) if idx >= 0 else record.get("text_full", record.get("text_preview", ""))
     return {
         "doc_id": meta.get("doc_id", record.get("id", "")[:12]),
         "doc_type": meta.get("doc_type", ""),
@@ -310,7 +349,7 @@ def serialize_result(r):
         "people": meta.get("people", [])[:20],
         "organizations": meta.get("organizations", [])[:10],
         "text_preview": record.get("text_preview", "")[:500],
-        "text_full": record.get("text_full", ""),
+        "text_full": full_text,
         "email_from": meta.get("from", ""),
         "email_to": meta.get("to", ""),
         "email_subject": meta.get("subject", ""),
@@ -396,13 +435,13 @@ def api_document(doc_id):
     meta = get_metadata()
     all_records = meta["indexed"] + meta["text_only"]
 
-    for record in all_records:
+    for i, record in enumerate(all_records):
         rec_id = record.get("metadata", {}).get("doc_id", record.get("id", ""))
         if rec_id == doc_id:
             return jsonify({
                 "doc_id": doc_id,
                 "source": record.get("source", ""),
-                "text": record.get("text_full", ""),
+                "text": get_full_text(i) or record.get("text_preview", ""),
                 "metadata": record.get("metadata", {}),
             })
 
