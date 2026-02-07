@@ -1,0 +1,106 @@
+name: Build Search Index (Cloud)
+
+on:
+  workflow_dispatch:
+    inputs:
+      skip_audit:
+        description: "Skip security audit step"
+        required: false
+        type: boolean
+        default: false
+
+jobs:
+  build:
+    name: Download, Build & Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+
+    steps:
+      # ── 1. Checkout ──────────────────────────────────────────────
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      # ── 2. Python ────────────────────────────────────────────────
+      - name: Set up Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      # ── 3. Cache pip ─────────────────────────────────────────────
+      - name: Cache pip dependencies
+        uses: actions/cache@v4
+        with:
+          path: ~/.cache/pip
+          key: ${{ runner.os }}-pip-${{ hashFiles('requirements.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      # ── 4. Install dependencies ──────────────────────────────────
+      - name: Install Python dependencies
+        run: |
+          set -o pipefail
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      # ── 5. Run setup.sh (download, normalize, build index) ──────
+      - name: Run setup.sh — download all data & build index
+        env:
+          PYTHONUNBUFFERED: "1"
+        run: |
+          set -o pipefail
+          chmod +x setup.sh
+          bash setup.sh
+
+      # ── 6. Disk usage after downloads ───────────────────────────
+      - name: Print disk usage
+        run: |
+          set -o pipefail
+          echo "=== Overall disk usage ==="
+          df -h .
+          echo ""
+          echo "=== Downloads directory ==="
+          du -sh downloads/ 2>/dev/null || echo "(no downloads/ directory)"
+          du -sh downloads/*/ 2>/dev/null || true
+          echo ""
+          echo "=== Data directory ==="
+          du -sh data/ 2>/dev/null || echo "(no data/ directory)"
+          du -sh data/*/ 2>/dev/null || true
+
+      # ── 7. Security audit ───────────────────────────────────────
+      - name: Run security audit
+        if: ${{ inputs.skip_audit != true }}
+        continue-on-error: false
+        run: |
+          set -o pipefail
+          python audit.py | tee audit-report.txt
+
+      - name: Create empty audit report if skipped
+        if: ${{ inputs.skip_audit == true }}
+        run: echo "Audit was skipped by user." > audit-report.txt
+
+      # ── 8. Show index stats ─────────────────────────────────────
+      - name: Show search index stats
+        run: |
+          set -o pipefail
+          python search.py --stats
+
+      # ── 9. Upload search index artifact ─────────────────────────
+      - name: Upload search index
+        uses: actions/upload-artifact@v4
+        with:
+          name: search-index
+          path: |
+            data/index/
+            data/normalized/corpus.jsonl
+          retention-days: 7
+          if-no-files-found: error
+
+      # ── 10. Upload audit report artifact ────────────────────────
+      - name: Upload audit report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: security-audit
+          path: audit-report.txt
+          retention-days: 7
+          if-no-files-found: warn
