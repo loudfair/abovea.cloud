@@ -338,6 +338,71 @@
     $list.innerHTML = html;
   }
 
+  // ── AI Ask ────────────────────────────────────────────────────────────────
+
+  var $aiAnswer = document.getElementById('ai-answer');
+  var $aiBody   = document.getElementById('ai-answer-body');
+  var $aiRelated = document.getElementById('ai-related');
+
+  function doAsk() {
+    var question = $input.value.trim();
+    if (!question) return;
+
+    // Show loading state
+    $aiAnswer.style.display = 'block';
+    $aiBody.innerHTML = '<div class="ai-loading"><div class="spinner"></div> Analyzing documents...</div>';
+    $aiRelated.innerHTML = '';
+
+    fetch('/api/ask', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        question: question,
+        mode: currentMode,
+        limit: 10
+      })
+    })
+    .then(function (r) {
+      if (!r.ok) throw new Error('AI request failed (' + r.status + ')');
+      return r.json();
+    })
+    .then(function (data) {
+      if (data.error && !data.answer) {
+        $aiBody.innerHTML = '<p class="ai-error">' + escapeHtml(data.error) + '</p>';
+        return;
+      }
+
+      // Render answer with basic markdown-like formatting
+      var answer = escapeHtml(data.answer || 'No answer generated.');
+      // Convert **bold** to <strong>
+      answer = answer.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+      // Convert bullet points
+      answer = answer.replace(/^[-•]\s+/gm, '<span class="ai-bullet">&#x2022;</span> ');
+      // Convert newlines to <br>
+      answer = answer.replace(/\n/g, '<br>');
+
+      $aiBody.innerHTML = '<div class="ai-text">' + answer + '</div>';
+
+      if (data.expanded_query) {
+        $aiBody.innerHTML += '<div class="ai-expanded">Searched for: <em>' + escapeHtml(data.expanded_query) + '</em></div>';
+      }
+
+      // Related queries
+      if (data.related_queries && data.related_queries.length) {
+        var relHtml = '<span class="ai-related-label">Related:</span> ';
+        data.related_queries.forEach(function (q) {
+          relHtml += '<button class="suggestion" onclick="quickSearch(\'' + escapeHtml(q).replace(/'/g, "\\'") + '\')">'
+            + escapeHtml(q) + '</button>';
+        });
+        $aiRelated.innerHTML = relHtml;
+      }
+    })
+    .catch(function (err) {
+      $aiBody.innerHTML = '<p class="ai-error">' + escapeHtml(err.message) + '</p>';
+    });
+  }
+  window.doAsk = doAsk;
+
   // ── Toggle Card Expanded ──────────────────────────────────────────────────
 
   function toggleCard(headerEl) {

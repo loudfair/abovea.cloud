@@ -622,6 +622,120 @@ def serialize_result(r):
     }
 
 
+# ─── AI Features ──────────────────────────────────────────────────────────────
+
+
+def ai_ask(question: str, search_results: list, max_context: int = 10):
+    """Synthesize an answer from search results using GPT-4o-mini (~$0.001/query)."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None, "Set OPENAI_API_KEY environment variable for AI features."
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+
+        # Build context from top results
+        context_parts = []
+        for i, r in enumerate(search_results[:max_context]):
+            record = r.get("record", r)
+            meta = record.get("metadata", {})
+            idx = r.get("index", -1)
+            text = get_full_text(idx) if idx >= 0 else ""
+            if not text:
+                text = record.get("text_full", record.get("text_preview", ""))
+            # Truncate each doc to keep token count manageable
+            text = text[:2000] if text else "(no text)"
+            doc_id = meta.get("doc_id", record.get("id", f"doc-{i+1}"))
+            source = record.get("source", meta.get("source", ""))
+            header = f"[Document {i+1}: {doc_id}"
+            if source:
+                header += f" | {source}"
+            if meta.get("from"):
+                header += f" | From: {meta['from']}"
+            if meta.get("to"):
+                header += f" | To: {meta['to']}"
+            if meta.get("subject"):
+                header += f" | Subject: {meta['subject']}"
+            if meta.get("date"):
+                header += f" | Date: {meta['date']}"
+            header += "]"
+            context_parts.append(f"{header}\n{text}")
+
+        context = "\n\n---\n\n".join(context_parts)
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You are a research assistant analyzing the Epstein case files. "
+                        "Answer the user's question based ONLY on the provided documents. "
+                        "Be specific — cite document IDs and quote relevant passages. "
+                        "If the documents don't contain enough information to answer, say so. "
+                        "Be concise but thorough. Use bullet points for clarity."
+                    ),
+                },
+                {
+                    "role": "user",
+                    "content": f"Question: {question}\n\n--- DOCUMENTS ---\n\n{context}",
+                },
+            ],
+            temperature=0.1,
+            max_tokens=1500,
+        )
+
+        return response.choices[0].message.content, None
+    except ImportError:
+        return None, "pip install openai"
+    except Exception as e:
+        return None, str(e)
+
+
+def ai_expand_query(query: str):
+    """Use GPT to expand a vague query into better search terms (~$0.0003/call)."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        return None, None
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+
+        response = client.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "You help expand search queries about the Jeffrey Epstein case. "
+                        "Given a user query, return a JSON object with:\n"
+                        "1. \"expanded\": a better search query with additional relevant terms "
+                        "(e.g. full names, aliases, related locations, related people)\n"
+                        "2. \"related\": array of 3-5 related follow-up search queries\n"
+                        "Be specific to the Epstein case. Only return valid JSON, nothing else."
+                    ),
+                },
+                {"role": "user", "content": query},
+            ],
+            temperature=0.3,
+            max_tokens=300,
+        )
+
+        text = response.choices[0].message.content.strip()
+        # Strip markdown code fences if present
+        if text.startswith("```"):
+            text = text.split("\n", 1)[1] if "\n" in text else text[3:]
+            if text.endswith("```"):
+                text = text[:-3]
+            text = text.strip()
+        result = json.loads(text)
+        return result.get("expanded"), result.get("related", [])
+    except Exception:
+        return None, None
+
+
 # ─── Routes ───────────────────────────────────────────────────────────────────
 
 
@@ -717,6 +831,81 @@ def api_people():
         return jsonify({
             "people": [{"name": n, "documents": c} for n, c in people],
             "total": total,
+        })
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/ask", methods=["POST"])
+def api_ask():
+    """AI-powered question answering over search results.
+
+    POST /api/ask  { "question": "...", "mode": "text" }
+    Runs a search, then synthesizes an answer from the top results.
+    Cost: ~$0.001 per query using gpt-4o-mini.
+    """
+    data = request.get_json(force=True, silent=True) or {}
+    question = data.get("question", "").strip()
+    mode = data.get("mode", "text")
+    limit = min(int(data.get("limit", 10)), 20)
+
+    if not question:
+        return jsonify({"error": "No question provided"}), 400
+
+    try:
+        # First, expand the query for better search results
+        expanded_query, related = ai_expand_query(question)
+        search_query = expanded_query or question
+
+        # Run the appropriate search
+        error = None
+        if mode == "semantic":
+            results, error = semantic_search(search_query, n_results=limit)
+        elif mode == "email":
+            gmail_results, _ = gmail_style_email_search(search_query, n_results=limit)
+            results = [{"record": {"metadata": r, "text_preview": r.get("body_preview", ""),
+                                    "source": r.get("source", ""), "text_full": r.get("body_preview", "")},
+                         "score": r["score"], "index": r.get("index", -1)} for r in gmail_results]
+        else:
+            results = text_search(search_query, n_results=limit)
+
+        if error:
+            return jsonify({"error": error}), 500
+
+        # Synthesize answer
+        answer, ai_error = ai_ask(question, results)
+
+        resp = {
+            "answer": answer,
+            "expanded_query": expanded_query,
+            "related_queries": related or [],
+            "sources_used": len(results),
+        }
+        if ai_error:
+            resp["error"] = ai_error
+
+        return jsonify(resp)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/expand")
+def api_expand():
+    """Expand a search query into better terms.
+
+    GET /api/expand?q=query
+    Cost: ~$0.0003 per call using gpt-4o-mini.
+    """
+    query = request.args.get("q", "").strip()
+    if not query:
+        return jsonify({"error": "No query provided"}), 400
+
+    try:
+        expanded, related = ai_expand_query(query)
+        return jsonify({
+            "original": query,
+            "expanded": expanded,
+            "related": related or [],
         })
     except Exception as e:
         return jsonify({"error": str(e)}), 500

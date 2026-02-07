@@ -49,6 +49,7 @@
                 <div class="search-row">
                     <input type="text" id="search-input" placeholder="Search 63K documents..." autofocus>
                     <button id="search-btn" onclick="doSearch()">SEARCH</button>
+                    <button id="ask-btn" onclick="doAsk()" title="Ask AI to analyze results (~$0.001)">ASK AI</button>
                 </div>
 
                 <div class="search-row" id="email-fields" style="display:none">
@@ -84,6 +85,15 @@
         </section>
 
         <section id="results-area">
+            <div id="ai-answer" class="ai-answer" style="display:none">
+                <div class="ai-answer-header">
+                    <span class="ai-label">AI ANALYSIS</span>
+                    <button class="ai-close" onclick="document.getElementById('ai-answer').style.display='none'">&times;</button>
+                </div>
+                <div id="ai-answer-body" class="ai-answer-body"></div>
+                <div id="ai-related" class="ai-related"></div>
+            </div>
+
             <div id="results-header" class="results-header" style="display:none">
                 <span id="results-count"></span>
                 <span id="matched-names" class="matched-names"></span>
