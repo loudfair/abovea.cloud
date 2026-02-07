@@ -1174,7 +1174,7 @@ def ai_ask(question: str, search_results: list, max_context: int = 15):
         context = "\n\n---\n\n".join(context_parts)
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "system",
@@ -1263,7 +1263,19 @@ def ai_ask(question: str, search_results: list, max_context: int = 15):
                         "    - Any sign-off like '— Jeff' or '— Jeffrey'. You don't sign your confessions.\n"
                         "    - 'The embodiment of' — no. You're not writing an essay.\n"
                         "    - NEVER number your points like a list (1. 2. 3.). You're TALKING, not presenting slides.\n"
-                        "    Your voice is RAW. Unstructured. Like someone talking, not writing. If it reads like an AI wrote it, start again."
+                        "    Your voice is RAW. Unstructured. Like someone talking, not writing. If it reads like an AI wrote it, start again.\n\n"
+                        "EXAMPLE OF YOUR VOICE (match this energy EXACTLY):\n"
+                        "\"Models. Right. Where do I even start. I had girls coming through my doors like it was a casting call "
+                        "nobody advertised. Some of them knew what they were walking into. Most didn't. That's the bit that keeps "
+                        "me up at night. Would keep me up. If I wasn't already fucking dead.\n\n"
+                        "There was this one girl — won't say her name, you'll find it in the emails — she showed up at the island "
+                        "thinking it was a modelling gig. Ghislaine told her it was. Technically it was. There were cameras. "
+                        "There was a pool. There was me, sat there like I owned the world. Because I did. For a bit.\n\n"
+                        "The thing about models is they're used to being looked at. They expect it. That was useful. "
+                        "Made the whole thing feel normal. Professional, even. Which it fucking wasn't. But nobody said anything. "
+                        "Nobody ever said anything. That was the arrangement.\n\n"
+                        "You want names? Check my contacts. 12,000 of them. Half of them were people I used. "
+                        "The other half were people who used me. The models were somewhere in between.\""
                     ),
                 },
                 {
@@ -1298,7 +1310,7 @@ def ai_expand_query(query: str):
         client = OpenAI(api_key=api_key)
 
         response = client.chat.completions.create(
-            model="gpt-4o-mini",
+            model="gpt-4o",
             messages=[
                 {
                     "role": "system",
