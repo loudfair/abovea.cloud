@@ -14,6 +14,7 @@ import os
 import pickle
 import re
 import sys
+import time
 from pathlib import Path
 from collections import Counter
 from datetime import datetime
@@ -174,17 +175,49 @@ def login_page():
     return render_template("login.html")
 
 
+# ─── Brute-force protection: 3 wrong attempts per IP per 24 hours ─────────────
+_login_attempts = {}  # {ip: [timestamp, timestamp, ...]}
+_LOGIN_MAX = 3
+_LOGIN_WINDOW = 86400  # 24 hours in seconds
+
+
 @app.route("/auth", methods=["POST"])
 def auth():
-    """Server-side password check. Password never stored in frontend."""
+    """Server-side password check with brute-force rate limiting."""
+    ip = request.headers.get("CF-Connecting-IP") or request.remote_addr
+    now = time.time()
+
+    # Clean old attempts and check count
+    attempts = _login_attempts.get(ip, [])
+    attempts = [t for t in attempts if now - t < _LOGIN_WINDOW]
+    _login_attempts[ip] = attempts
+
+    if len(attempts) >= _LOGIN_MAX:
+        remaining = int(_LOGIN_WINDOW - (now - attempts[0]))
+        hours = remaining // 3600
+        mins = (remaining % 3600) // 60
+        return jsonify({
+            "ok": False,
+            "error": f"Too many attempts. Try again in {hours}h {mins}m."
+        }), 429
+
     data = request.get_json(force=True, silent=True) or {}
     password = data.get("password", "")
     pw_hash = hashlib.sha256(password.encode()).hexdigest()
     if hmac.compare_digest(pw_hash, SITE_PASSWORD_HASH or ""):
+        _login_attempts.pop(ip, None)  # reset on success
         session["authenticated"] = True
         session.permanent = True
         return jsonify({"ok": True})
-    return jsonify({"ok": False, "error": "Wrong password"}), 401
+
+    # Wrong password — record the failed attempt
+    attempts.append(now)
+    _login_attempts[ip] = attempts
+    left = _LOGIN_MAX - len(attempts)
+    return jsonify({
+        "ok": False,
+        "error": f"Wrong password. {left} attempt{'s' if left != 1 else ''} remaining."
+    }), 401
 
 # ─── Lazy-loaded globals ──────────────────────────────────────────────────────
 
