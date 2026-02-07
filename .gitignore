@@ -13,6 +13,12 @@ secrets.txt
 .secrets/
 .credentials/
 
+# API Keys
+kaggle.json
+.kaggle/
+KAGGLE_API_TOKEN
+*.token
+
 # OS Files
 .DS_Store
 .DS_Store?
