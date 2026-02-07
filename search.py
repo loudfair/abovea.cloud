@@ -28,7 +28,7 @@ from rich.table import Table
 from rich.markdown import Markdown
 
 console = Console()
-BASE = Path("/Users/m3/epstein-search")
+BASE = Path(__file__).resolve().parent
 INDEX_DIR = BASE / "data" / "index"
 CORPUS_PATH = BASE / "data" / "normalized" / "corpus.jsonl"
 
@@ -79,16 +79,51 @@ def get_record(idx: int):
 
 
 def semantic_search(query: str, n_results: int = 10):
-    """Search using vector similarity. Requires query embedding.
-    Since we don't want to depend on an API for basic search,
-    we fall back to text search and then re-rank using FAISS
-    on matching docs.
-    """
-    # Use combined text + semantic approach:
-    # 1. Text search to find candidate documents
-    # 2. If we have embeddings, use them for ranking
-    text_results = text_search(query, n_results=min(n_results * 5, 200))
-    return text_results[:n_results]
+    """Search using FAISS vector similarity via OpenAI embeddings."""
+    api_key = os.environ.get("OPENAI_API_KEY")
+    if not api_key:
+        console.print("[red]Set OPENAI_API_KEY for semantic search.[/]")
+        console.print("[dim]export OPENAI_API_KEY='sk-...'[/]")
+        console.print("[dim]Falling back to text search.[/]\n")
+        return text_search(query, n_results=n_results)
+
+    try:
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
+
+        console.print("[dim]Embedding query via OpenAI...[/]")
+        response = client.embeddings.create(
+            model="text-embedding-3-small",
+            input=query,
+            dimensions=768,
+        )
+        query_vec = np.array(response.data[0].embedding, dtype=np.float32)
+        norm = np.linalg.norm(query_vec)
+        if norm > 0:
+            query_vec = query_vec / norm
+        query_vec = query_vec.reshape(1, -1)
+
+        index = get_faiss_index()
+        scores, indices = index.search(query_vec, n_results)
+
+        results = []
+        for score, idx in zip(scores[0], indices[0]):
+            if idx < 0:
+                continue
+            record = get_record(int(idx))
+            if record:
+                results.append({
+                    "record": record,
+                    "score": round(float(score), 4),
+                    "index": int(idx),
+                })
+        return results
+    except ImportError:
+        console.print("[red]pip install openai[/]")
+        return text_search(query, n_results=n_results)
+    except Exception as e:
+        console.print(f"[red]Semantic search error: {e}[/]")
+        return text_search(query, n_results=n_results)
 
 
 def text_search(query: str, n_results: int = 50, doc_type: str = None):
@@ -468,12 +503,13 @@ def ask_ai(question: str, context_docs: list):
 @click.option("--email", "-e", is_flag=True, help="Search emails")
 @click.option("--from", "-f", "from_addr", help="Email sender filter")
 @click.option("--to", "to_addr", help="Email recipient filter")
+@click.option("--semantic", is_flag=True, help="Use FAISS semantic search (needs OPENAI_API_KEY)")
 @click.option("--ask", "-a", is_flag=True, help="Get AI-synthesized answer")
 @click.option("--results", "-r", default=10, help="Number of results")
 @click.option("--stats", "-s", is_flag=True, help="Show statistics")
 @click.option("--people", "-p", is_flag=True, help="List all indexed people")
 @click.option("--full", is_flag=True, help="Show full document text")
-def main(query, name, doc_type, email, from_addr, to_addr, ask, results, stats, people, full):
+def main(query, name, doc_type, email, from_addr, to_addr, semantic, ask, results, stats, people, full):
     """Search the Epstein Files archive (63K+ documents).
     
     \b
@@ -506,6 +542,8 @@ def main(query, name, doc_type, email, from_addr, to_addr, ask, results, stats, 
         search_results = name_search(name, n_results=results)
     elif email or from_addr or to_addr:
         search_results = email_search(query=query, from_addr=from_addr, to_addr=to_addr, n_results=results)
+    elif semantic:
+        search_results = semantic_search(search_query, n_results=results)
     else:
         search_results = text_search(search_query, n_results=results, doc_type=doc_type)
     

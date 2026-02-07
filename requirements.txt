@@ -1,8 +1,9 @@
 datasets
 pandas
 pyarrow
-chromadb
+numpy
+faiss-cpu
 openai
 rich
 click
-xxhash
+flask

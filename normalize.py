@@ -15,7 +15,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 
 console = Console()
-BASE = Path("/Users/m3/epstein-search")
+BASE = Path(__file__).resolve().parent
 DOWNLOADS = BASE / "downloads"
 OUTPUT = BASE / "data" / "normalized"
 OUTPUT.mkdir(parents=True, exist_ok=True)

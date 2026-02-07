@@ -32,6 +32,9 @@ A locally-running search engine that aggregates **ALL publicly available extract
 ├── downloads/          1.0 GB  ← raw data from all sources (gitignored)
 ├── data/               686 MB  ← normalized corpus + FAISS index (gitignored)
 ├── venv/               636 MB  ← Python virtual environment (gitignored)
+├── app.py                      ← Flask web UI server
+├── templates/                  ← HTML templates for web UI
+├── static/                     ← CSS/JS assets for web UI
 ├── search.py                   ← CLI search tool
 ├── normalize.py                ← data normalization pipeline
 ├── build_index.py              ← index builder
@@ -53,7 +56,7 @@ Only code — no data. Anyone clones it, runs `./setup.sh`, and gets the full 63
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Web UI frontend | MEDIUM | Currently CLI-only. Could add Flask/Streamlit web interface |
+| Web UI frontend | DONE | Flask web interface at http://localhost:5000 |
 | DOJ full 3.5M pages | LOW | Only ~63K docs indexed (what's been OCR'd by community). The DOJ released 3.5M pages total — most not yet OCR'd by anyone |
 | Semantic search via API | MEDIUM | FAISS index is built but search.py currently uses text search only (no OpenAI embedding calls for queries). Could add `--semantic` flag that embeds the query via OpenAI and does FAISS similarity search |
 | Network graph of connections | LOW | The entity data (12K people, 5K orgs) is there to build person-to-person co-occurrence graphs |
@@ -104,7 +107,15 @@ chmod +x setup.sh
 ./setup.sh
 ```
 
-## Usage
+## Web UI
+
+```bash
+source venv/bin/activate
+python app.py
+# Open http://localhost:5000
+```
+
+## CLI Usage
 
 ```bash
 source venv/bin/activate
@@ -173,7 +184,7 @@ build_index.py    → corpus.jsonl → FAISS vectors + inverted text/name index
 search.py         → Query interface: text, name, email, AI synthesis
 ```
 
-**Stack:** Python 3.14 / FAISS / OpenAI (optional) / Rich CLI
+**Stack:** Python 3.14 / Flask / FAISS / OpenAI (optional) / Rich CLI
 
 ## Security Audit
 

@@ -61,3 +61,6 @@ data/
 
 # Temp scripts
 download_hf.py
+
+# Flask
+instance/

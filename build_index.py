@@ -17,7 +17,7 @@ from rich.console import Console
 from rich.progress import Progress, SpinnerColumn, BarColumn, TextColumn, TimeElapsedColumn
 
 console = Console()
-BASE = Path("/Users/m3/epstein-search")
+BASE = Path(__file__).resolve().parent
 CORPUS_PATH = BASE / "data" / "normalized" / "corpus.jsonl"
 INDEX_DIR = BASE / "data" / "index"
 INDEX_DIR.mkdir(parents=True, exist_ok=True)

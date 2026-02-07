@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Epstein Files Search</title>
+    <link rel="stylesheet" href="/static/style.css">
+</head>
+<body>
+
+    <header>
+        <div class="header-inner">
+            <h1>E P S T E I N &ensp; F I L E S</h1>
+            <p class="subtitle">63,494 documents from 7 public archives &mdash; DOJ, House Oversight, FBI</p>
+        </div>
+    </header>
+
+    <main>
+
+        <section class="stats-bar" id="stats-bar">
+            <div class="stat-item">
+                <span class="stat-value" id="stat-docs">&mdash;</span>
+                <span class="stat-label">D O C U M E N T S</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-people">&mdash;</span>
+                <span class="stat-label">P E O P L E</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-words">&mdash;</span>
+                <span class="stat-label">W O R D S &ensp; I N D E X E D</span>
+            </div>
+            <div class="stat-item">
+                <span class="stat-value" id="stat-vectors">&mdash;</span>
+                <span class="stat-label">E M B E D D I N G S</span>
+            </div>
+        </section>
+
+        <section class="search-container">
+            <nav class="search-modes">
+                <button class="mode-btn active" data-mode="text">Full Text</button>
+                <button class="mode-btn" data-mode="semantic">Semantic</button>
+                <button class="mode-btn" data-mode="name">Person</button>
+                <button class="mode-btn" data-mode="email">Email</button>
+                <button class="mode-btn" data-mode="people">People Index</button>
+            </nav>
+
+            <div class="search-box">
+                <div class="search-row">
+                    <input type="text" id="search-input" placeholder="Search 63K documents..." autofocus>
+                    <button id="search-btn" onclick="doSearch()">SEARCH</button>
+                </div>
+
+                <div class="search-row" id="email-fields" style="display:none">
+                    <input type="text" id="email-from" placeholder="From (sender)">
+                    <input type="text" id="email-to" placeholder="To (recipient)">
+                </div>
+
+                <div class="search-options">
+                    <label>
+                        Results
+                        <select id="result-limit">
+                            <option value="10">10</option>
+                            <option value="20" selected>20</option>
+                            <option value="50">50</option>
+                            <option value="100">100</option>
+                        </select>
+                    </label>
+                    <label id="type-filter-label">
+                        Type
+                        <select id="type-filter">
+                            <option value="">All</option>
+                            <option value="email">Email</option>
+                            <option value="court">Court Filing</option>
+                            <option value="flight">Flight Log</option>
+                            <option value="report">Report</option>
+                            <option value="transcript">Transcript</option>
+                            <option value="financial">Financial</option>
+                            <option value="medical">Medical</option>
+                        </select>
+                    </label>
+                </div>
+            </div>
+        </section>
+
+        <section id="results-area">
+            <div id="results-header" class="results-header" style="display:none">
+                <span id="results-count"></span>
+                <span id="matched-names" class="matched-names"></span>
+            </div>
+
+            <div id="results-list" class="results-list"></div>
+
+            <div id="loading" class="loading" style="display:none">
+                <div class="spinner"></div>
+                <span>Searching...</span>
+            </div>
+
+            <div id="empty-state" class="empty-state">
+                <div class="empty-icon" aria-hidden="true">
+                    <svg width="48" height="48" viewBox="0 0 48 48" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <circle cx="22" cy="22" r="14" stroke="currentColor" stroke-width="1.5"/>
+                        <line x1="32.5" y1="32.5" x2="42" y2="42" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/>
+                    </svg>
+                </div>
+                <p>Enter a query to explore the Epstein case files.</p>
+                <div class="suggestions">
+                    <button class="suggestion" onclick="quickSearch('flight logs')">flight logs</button>
+                    <button class="suggestion" onclick="quickSearch('Ghislaine Maxwell', 'name')">Ghislaine Maxwell</button>
+                    <button class="suggestion" onclick="quickSearch('palm beach police')">palm beach police</button>
+                    <button class="suggestion" onclick="quickSearch('', 'email', 'epstein')">emails from epstein</button>
+                    <button class="suggestion" onclick="quickSearch('grand jury')">grand jury</button>
+                    <button class="suggestion" onclick="quickSearch('island property')">island property</button>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="doc-modal" class="modal" style="display:none" onclick="closeModal(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <h2 id="modal-title">Document</h2>
+                <button class="modal-close" onclick="closeModal()" aria-label="Close">&times;</button>
+            </div>
+            <div id="modal-body" class="modal-body"></div>
+        </div>
+    </div>
+
+    <footer>
+        <p>Data from public U.S. government releases &middot; <a href="https://github.com/loudfair/abovea.cloud" target="_blank" rel="noopener">GitHub</a></p>
+    </footer>
+
+    <script src="/static/app.js"></script>
+</body>
+</html>
