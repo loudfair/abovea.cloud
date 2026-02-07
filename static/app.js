@@ -430,15 +430,25 @@
   var $aiBody   = document.getElementById('ai-answer-body');
   var $aiRelated = document.getElementById('ai-related');
 
+  // Helper: set question in both inputs and fire ask
+  function askQuestion(q) {
+    $input.value = q;
+    if ($input2) $input2.value = q;
+    doAsk();
+  }
+
   function doAsk() {
-    var question = $input.value.trim();
+    var question = ($input2 && $input2.value.trim()) || $input.value.trim();
     if (!question) return;
+    // Sync both inputs
+    $input.value = question;
+    if ($input2) $input2.value = question;
 
     showResults();
 
     // Show loading state
     $aiAnswer.style.display = 'block';
-    $aiBody.innerHTML = '<div class="ai-loading"><div class="spinner"></div> Checking my files...</div>';
+    $aiBody.innerHTML = '<div class="ai-loading"><div class="spinner"></div></div>';
     $aiRelated.innerHTML = '';
 
     fetch('/api/ask', {
@@ -460,118 +470,75 @@
         return;
       }
 
-      // Render answer with markdown-like formatting
       var rawAnswer = data.answer || 'No answer generated.';
 
-      // Extract follow-up questions from the answer (FOLLOW_UP: lines)
+      // Extract follow-up questions
       var followUps = [];
-      rawAnswer = rawAnswer.replace(/^FOLLOW_UP:\s*(.+)$/gm, function (_, q) {
-        followUps.push(q.trim());
-        return '';
-      });
-      // Also catch "Follow up:" and "Follow-up:" variants
-      rawAnswer = rawAnswer.replace(/^(?:Follow[- ]?up|Suggested|Try asking):\s*(.+)$/gim, function (_, q) {
-        followUps.push(q.trim());
-        return '';
-      });
+      rawAnswer = rawAnswer.replace(/^FOLLOW_UP:\s*(.+)$/gm, function (_, q) { followUps.push(q.trim()); return ''; });
+      rawAnswer = rawAnswer.replace(/^(?:Follow[- ]?up|Suggested|Try asking):\s*(.+)$/gim, function (_, q) { followUps.push(q.trim()); return ''; });
 
       var answer = escapeHtml(rawAnswer.trim());
-      // Convert **bold** to <strong>
       answer = answer.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
-      // Convert ### headers
       answer = answer.replace(/^###\s+(.+)$/gm, '<div class="ai-heading">$1</div>');
-      // Convert numbered lists: "1. " at start of line
       answer = answer.replace(/^(\d+)\.\s+/gm, '<span class="ai-num">$1.</span> ');
-      // Convert bullet points
       answer = answer.replace(/^[-•]\s+/gm, '<span class="ai-bullet">&#x2022;</span> ');
-      // Convert [DOC:id] references to clickable links
       answer = answer.replace(/\[DOC:([^\]]+)\]/g, function (_, docId) {
         var cleanId = docId.replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&quot;/g, '"');
         return '<a class="ai-doc-link" href="#" data-docid="' + escapeHtml(cleanId) + '">' + escapeHtml(cleanId) + '</a>';
       });
-      // Convert newlines to <br>
       answer = answer.replace(/\n/g, '<br>');
-      // Clean up excess <br>
       answer = answer.replace(/(<br>){3,}/g, '<br><br>');
 
-      $aiBody.innerHTML = '<div class="ai-text">' + answer + '</div>';
+      // Build letter-style response
+      var html = '<div class="jeff-letter">';
+      html += '<div class="jeff-letter-body">' + answer + '</div>';
+      html += '<div class="jeff-sig">&mdash; Jeff</div>';
 
-      // Bind doc link clicks safely (avoids inline onclick XSS)
-      $aiBody.querySelectorAll('.ai-doc-link').forEach(function (el) {
-        el.addEventListener('click', function (e) {
-          e.preventDefault();
-          openModal(el.getAttribute('data-docid'));
+      // Follow-ups inline
+      if (followUps.length > 0) {
+        html += '<div class="jeff-followups">';
+        followUps.forEach(function (q) {
+          html += '<button class="jeff-followup" data-q="' + escapeHtml(q) + '">&rarr; ' + escapeHtml(q) + '</button>';
         });
+        html += '</div>';
+      }
+
+      // Sources as collapsible
+      if (data.sources && data.sources.length) {
+        html += '<details class="jeff-sources"><summary>' + data.sources.length + ' files referenced</summary>';
+        html += '<div class="jeff-sources-list">';
+        data.sources.forEach(function (s, i) {
+          html += '<a class="jeff-source" href="#" data-docid="' + escapeHtml(s.doc_id) + '">' + escapeHtml(s.doc_id) + '</a>';
+        });
+        html += '</div></details>';
+      }
+
+      html += '</div>';
+      $aiBody.innerHTML = html;
+
+      // Bind clicks
+      $aiBody.querySelectorAll('.ai-doc-link').forEach(function (el) {
+        el.addEventListener('click', function (e) { e.preventDefault(); openModal(el.getAttribute('data-docid')); });
+      });
+      $aiBody.querySelectorAll('.jeff-followup').forEach(function (btn) {
+        btn.addEventListener('click', function () { askQuestion(btn.getAttribute('data-q')); });
+      });
+      $aiBody.querySelectorAll('.jeff-source').forEach(function (el) {
+        el.addEventListener('click', function (e) { e.preventDefault(); openModal(el.getAttribute('data-docid')); });
       });
 
-      // Follow-up questions as clickable buttons
-      if (followUps.length > 0) {
-        var fuHtml = '<div class="ai-followups"><span class="ai-followups-label">DIG DEEPER</span>';
-        followUps.forEach(function (q) {
-          fuHtml += '<button class="ai-followup-btn" data-q="' + escapeHtml(q) + '">'
-            + escapeHtml(q) + '</button>';
-        });
-        fuHtml += '</div>';
-        $aiBody.innerHTML += fuHtml;
-        // Bind click handlers
-        $aiBody.querySelectorAll('.ai-followup-btn').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            $input.value = btn.getAttribute('data-q');
-            doAsk();
-          });
-        });
-      }
-
-      // Sources list
-      if (data.sources && data.sources.length) {
-        var srcHtml = '<div class="ai-sources"><span class="ai-sources-label">MY FILES</span>';
-        data.sources.forEach(function (s, i) {
-          var label = escapeHtml(s.doc_id);
-          var detail = [];
-          if (s.doc_type) detail.push(escapeHtml(s.doc_type));
-          if (s.from) detail.push(escapeHtml(s.from));
-          if (s.subject) detail.push(escapeHtml(s.subject));
-          if (s.date) detail.push(escapeHtml(s.date));
-          var srcItem = document.createElement('a');
-          srcItem.className = 'ai-source-item';
-          srcItem.href = '#';
-          srcItem.setAttribute('data-docid', s.doc_id);
-          srcItem.innerHTML = '<span class="ai-source-id">' + (i + 1) + '. ' + label + '</span>'
-            + (detail.length ? '<span class="ai-source-detail">' + detail.join(' &middot; ') + '</span>' : '');
-          srcHtml += srcItem.outerHTML;
-        });
-        srcHtml += '</div>';
-        $aiBody.innerHTML += srcHtml;
-        // Bind source clicks
-        $aiBody.querySelectorAll('.ai-source-item').forEach(function (el) {
-          el.addEventListener('click', function (e) {
-            e.preventDefault();
-            openModal(el.getAttribute('data-docid'));
-          });
-        });
-      }
-
-      // Don't reveal search mechanics to user
-
-      // Related queries
+      // Related queries below the letter
       var allRelated = (data.related_queries || []).concat(followUps);
       if (allRelated.length) {
-        var relHtml = '<span class="ai-related-label">Ask me about:</span> ';
         var seen = {};
+        var relHtml = '';
         allRelated.forEach(function (q) {
-          if (seen[q]) return;
-          seen[q] = true;
-          var btn = document.createElement('button');
-          btn.className = 'suggestion';
-          btn.textContent = q;
+          if (seen[q]) return; seen[q] = true;
           relHtml += '<button class="suggestion" data-q="' + escapeHtml(q) + '">' + escapeHtml(q) + '</button>';
         });
         $aiRelated.innerHTML = relHtml;
         $aiRelated.querySelectorAll('.suggestion').forEach(function (btn) {
-          btn.addEventListener('click', function () {
-            $input.value = btn.getAttribute('data-q');
-            doAsk();
-          });
+          btn.addEventListener('click', function () { askQuestion(btn.getAttribute('data-q')); });
         });
       }
     })
@@ -596,27 +563,23 @@
     var people = data.people || [];
     var total  = data.total != null ? data.total : people.length;
 
-    var showing = (offset || 0) + people.length;
-    $count.textContent = formatNumber(showing) + ' of ' + formatNumber(total) + ' people';
+    $count.textContent = '';
     $matched.textContent = '';
     $matched.style.display = 'none';
-    $header.style.display = 'flex';
+    $header.style.display = 'none';
 
     if (!people.length) {
       $list.innerHTML = '<div class="empty-state" style="padding:30px;">'
-        + '<p>No people found.</p></div>';
+        + '<p>No one by that name.</p></div>';
       return;
     }
 
-    var startRank = (offset || 0) + 1;
-    var html = '<div class="people-grid">';
-    people.forEach(function (p, i) {
-      html += '<div class="people-item" onclick="quickSearch(\''
+    var html = '<div class="people-list">';
+    people.forEach(function (p) {
+      html += '<div class="people-name" onclick="quickSearch(\''
         + escapeHtml(p.name).replace(/'/g, "\\'")
         + '\', \'name\')">'
-        + '<span class="people-rank">' + (startRank + i) + '</span>'
-        + '<span class="name">' + escapeHtml(p.name) + '</span>'
-        + '<span class="count">' + formatNumber(p.documents) + ' docs</span>'
+        + escapeHtml(p.name)
         + '</div>';
     });
     html += '</div>';

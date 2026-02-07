@@ -724,45 +724,25 @@ main {
 }
 
 /* ─── People Grid ──────────────────────────────────────────────────────────── */
-.people-grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
-    gap: 6px;
+/* People list — clean, no grid, just names */
+.people-list {
+    max-width: 640px;
+    margin: 0 auto;
 }
 
-.people-item {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 10px 16px;
-    background: var(--bg-surface-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    cursor: pointer;
-    transition: all var(--transition);
-}
-
-.people-item:hover {
-    border-color: var(--border-hover);
-    background: var(--bg-surface-2);
-    box-shadow: var(--shadow);
-}
-
-.people-item .name {
+.people-name {
+    padding: 12px 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
     font-size: 0.88rem;
-    color: var(--text-secondary);
     font-weight: 300;
+    color: rgba(255, 255, 255, 0.72);
+    cursor: pointer;
+    transition: color 0.15s ease;
+    letter-spacing: 0.04em;
 }
 
-.people-item:hover .name {
-    color: var(--text-primary);
-}
-
-.people-item .count {
-    font-size: 0.75rem;
-    color: var(--text-muted);
-    font-variant-numeric: tabular-nums;
-    font-weight: 300;
+.people-name:hover {
+    color: rgba(255, 255, 255, 0.95);
 }
 
 /* ─── Empty State ──────────────────────────────────────────────────────────── */
@@ -1150,141 +1130,53 @@ mark, .highlight {
 
 /* ─── Responsive — Mobile (max-width: 640px) ───────────────────────────────── */
 @media (max-width: 640px) {
-    html {
-        font-size: 14px;
-    }
+    html { font-size: 14px; }
 
-    header {
-        padding: 28px 0 22px;
-    }
+    main { padding: 0 16px 40px; }
 
-    header h1 {
-        font-size: 1.4rem;
-    }
+    /* Hero mobile */
+    .hero { min-height: 80vh; padding: 0 20px; }
+    .hero-text p { font-size: 1.1rem; }
+    .hero-text p:first-child { font-size: 1.3rem; }
+    .hero-count strong { font-size: 1.2rem; }
+    .hero-cta { font-size: 0.95rem !important; }
+    .hero-search { max-width: 100%; }
+    .hero-suggestions .suggestion { font-size: 0.7rem; padding: 5px 10px; }
 
-    .stats-bar {
-        gap: 20px;
-        padding: 16px 16px;
-    }
+    /* Results topbar */
+    .results-topbar { gap: 8px; padding: 12px 0; }
+    .results-search input { font-size: 0.85rem; padding: 10px 12px; }
+    .results-search button { padding: 10px 12px; font-size: 0.65rem; }
 
-    .stat-value {
-        font-size: 1.2rem;
-    }
-
-    main {
-        padding: 0 16px 40px;
-    }
-
-    .search-container {
-        margin: 12px 0 24px;
-    }
-
+    /* Mode tabs — horizontal scroll */
     .search-modes {
         overflow-x: auto;
         -webkit-overflow-scrolling: touch;
         scrollbar-width: none;
-        -ms-overflow-style: none;
+        flex-wrap: nowrap;
     }
+    .search-modes::-webkit-scrollbar { display: none; }
+    .mode-btn { padding: 7px 12px; font-size: 0.62rem; white-space: nowrap; flex-shrink: 0; }
 
-    .search-modes::-webkit-scrollbar {
-        display: none;
-    }
+    /* Jeff letter mobile */
+    .jeff-letter { padding: 24px 20px; }
+    .jeff-letter-body { font-size: 0.88rem; line-height: 1.8; }
+    .jeff-followup { font-size: 0.78rem; }
 
-    .mode-btn {
-        padding: 8px 14px;
-        font-size: 0.65rem;
-        white-space: nowrap;
-        flex-shrink: 0;
-    }
+    /* Cards mobile */
+    .card-header { padding: 12px 14px; gap: 10px; }
+    .card-rank { width: 22px; height: 22px; font-size: 0.62rem; }
+    .card-expanded { padding: 0 14px 14px; }
+    .card-full-text { padding: 14px; font-size: 0.75rem; max-height: 300px; }
 
-    .search-box {
-        padding: 12px;
-    }
+    /* Modal mobile — slides up */
+    .modal { padding: 0; align-items: flex-end; }
+    .modal-content { max-height: 92vh; border-radius: 12px 12px 0 0; width: 100%; }
+    .modal-header { padding: 14px 18px; }
+    .modal-body { padding: 18px; }
 
-    .search-row {
-        flex-direction: column;
-    }
-
-    .search-row input {
-        font-size: 1rem;
-    }
-
-    #search-btn {
-        padding: 12px;
-    }
-
-    .email-fields {
-        flex-direction: column;
-    }
-
-    .email-fields input {
-        min-width: 0;
-    }
-
-    .search-options {
-        flex-direction: column;
-        gap: 10px;
-    }
-
-    .card-header {
-        padding: 12px 14px;
-        gap: 10px;
-    }
-
-    .card-rank {
-        width: 22px;
-        height: 22px;
-        font-size: 0.62rem;
-    }
-
-    .card-doc-id {
-        font-size: 0.85rem;
-    }
-
-    .card-expanded {
-        padding: 0 14px 14px 14px;
-    }
-
-    .card-full-text {
-        padding: 14px;
-        font-size: 0.75rem;
-        max-height: 300px;
-    }
-
-    .people-grid {
-        grid-template-columns: 1fr;
-    }
-
-    .modal {
-        padding: 12px;
-        align-items: flex-end;
-    }
-
-    .modal-content {
-        max-height: 90vh;
-        border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-    }
-
-    .modal-header {
-        padding: 14px 18px;
-    }
-
-    .modal-body {
-        padding: 18px;
-    }
-
-    .empty-state {
-        padding: 48px 16px;
-    }
-
-    .suggestions {
-        gap: 6px;
-    }
-
-    .suggestion {
-        font-size: 0.72rem;
-        padding: 6px 14px;
-    }
+    .empty-state { padding: 32px 16px; }
+    .suggestion { font-size: 0.7rem; padding: 5px 12px; }
 }
 
 /* ─── Ask AI Button ────────────────────────────────────────────────────────── */
@@ -1311,222 +1203,202 @@ mark, .highlight {
     background: rgba(255, 255, 255, 0.03);
 }
 
-/* ─── AI Answer Panel ──────────────────────────────────────────────────────── */
+/* ─── Jeff's Confession (AI Answer) ───────────────────────────────────────── */
 
 .ai-answer {
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
     margin-bottom: 24px;
-    overflow: hidden;
 }
 
 .ai-answer-header {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: 12px 20px;
-    border-bottom: 1px solid var(--border);
-}
-
-.ai-label {
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    font-weight: 500;
-    letter-spacing: 0.15em;
-    color: var(--text-tertiary);
-    text-transform: uppercase;
-}
-
-.ai-close {
-    background: none;
-    border: none;
-    color: var(--text-muted);
-    font-size: 1.2rem;
-    cursor: pointer;
-    padding: 0 4px;
-    line-height: 1;
-}
-
-.ai-close:hover {
-    color: var(--text-primary);
+    display: none;
 }
 
 .ai-answer-body {
-    padding: 20px;
-}
-
-.ai-text {
-    font-size: 0.88rem;
-    line-height: 1.8;
-    color: var(--text-secondary);
-}
-
-.ai-text strong {
-    color: var(--text-primary);
-    font-weight: 500;
-}
-
-.ai-bullet {
-    color: var(--text-muted);
-    margin-right: 6px;
-}
-
-.ai-expanded {
-    margin-top: 16px;
-    padding-top: 12px;
-    border-top: 1px solid var(--border);
-    font-size: 0.76rem;
-    color: var(--text-muted);
-    font-family: var(--font-mono);
-}
-
-.ai-expanded em {
-    color: var(--text-tertiary);
+    padding: 0;
 }
 
 .ai-loading {
     display: flex;
     align-items: center;
-    gap: 12px;
+    justify-content: center;
+    padding: 48px 0;
     color: var(--text-muted);
-    font-size: 0.84rem;
 }
 
 .ai-loading .spinner {
-    width: 16px;
-    height: 16px;
+    width: 20px;
+    height: 20px;
     border-width: 1.5px;
 }
 
 .ai-error {
-    color: #ff4444;
+    color: rgba(255, 100, 100, 0.8);
     font-size: 0.84rem;
+    padding: 24px;
 }
 
-.ai-related {
-    padding: 12px 20px;
-    border-top: 1px solid var(--border);
+/* The letter */
+.jeff-letter {
+    background: #111111;
+    border-radius: 6px;
+    padding: 32px 28px;
+    max-width: 640px;
+    margin: 0 auto;
+}
+
+.jeff-letter-body {
+    font-size: 0.92rem;
+    line-height: 1.9;
+    color: rgba(255, 255, 255, 0.88);
+    font-weight: 300;
+    letter-spacing: 0.04em;
+}
+
+.jeff-letter-body strong {
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 500;
+}
+
+.jeff-letter-body .ai-heading {
+    font-size: 0.8rem;
+    font-weight: 500;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: rgba(255, 255, 255, 0.55);
+    margin: 20px 0 8px;
+}
+
+.jeff-letter-body .ai-num {
+    color: rgba(255, 255, 255, 0.95);
+    font-weight: 500;
+    font-family: var(--font-mono);
+    font-size: 0.82rem;
+    margin-right: 4px;
+}
+
+.jeff-letter-body .ai-bullet {
+    color: rgba(255, 255, 255, 0.3);
+    margin-right: 6px;
+}
+
+.ai-doc-link {
+    font-family: var(--font-mono);
+    font-size: 0.72rem;
+    color: rgba(255, 255, 255, 0.55);
+    text-decoration: none;
+    border-bottom: 1px dotted rgba(255, 255, 255, 0.15);
+    padding: 1px 3px;
+    transition: all 0.15s ease;
+    cursor: pointer;
+}
+
+.ai-doc-link:hover {
+    color: rgba(255, 255, 255, 0.95);
+}
+
+/* Signature */
+.jeff-sig {
+    margin-top: 28px;
+    padding-top: 20px;
+    border-top: 1px solid rgba(255, 255, 255, 0.08);
+    font-size: 0.85rem;
+    font-style: italic;
+    font-weight: 200;
+    color: rgba(255, 255, 255, 0.4);
+    letter-spacing: 0.06em;
+}
+
+/* Follow-ups */
+.jeff-followups {
+    margin-top: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.jeff-followup {
+    background: none;
+    border: none;
+    text-align: left;
+    font-family: var(--font);
+    font-size: 0.82rem;
+    font-weight: 300;
+    color: rgba(255, 255, 255, 0.5);
+    padding: 8px 0;
+    cursor: pointer;
+    transition: color 0.15s ease;
+    letter-spacing: 0.03em;
+}
+
+.jeff-followup:hover {
+    color: rgba(255, 255, 255, 0.9);
+}
+
+/* Collapsible sources */
+.jeff-sources {
+    margin-top: 16px;
+}
+
+.jeff-sources summary {
+    font-size: 0.7rem;
+    color: rgba(255, 255, 255, 0.3);
+    cursor: pointer;
+    font-weight: 400;
+    letter-spacing: 0.08em;
+    list-style: none;
+    padding: 6px 0;
+}
+
+.jeff-sources summary::-webkit-details-marker { display: none; }
+.jeff-sources summary::before { content: '+ '; }
+.jeff-sources[open] summary::before { content: '- '; }
+
+.jeff-sources-list {
     display: flex;
     flex-wrap: wrap;
-    align-items: center;
+    gap: 6px;
+    padding: 8px 0;
+}
+
+.jeff-source {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: rgba(255, 255, 255, 0.35);
+    text-decoration: none;
+    padding: 3px 8px;
+    background: rgba(255, 255, 255, 0.04);
+    border-radius: 3px;
+    transition: all 0.15s ease;
+}
+
+.jeff-source:hover {
+    color: rgba(255, 255, 255, 0.8);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Related queries below letter */
+.ai-related {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
     gap: 8px;
+    padding: 16px 0;
+    max-width: 640px;
+    margin: 0 auto;
 }
 
 .ai-related:empty {
     display: none;
 }
 
-.ai-related-label {
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    letter-spacing: 0.1em;
-    color: var(--text-muted);
-    text-transform: uppercase;
-}
-
 .ai-related .suggestion {
-    font-size: 0.7rem;
-    padding: 4px 12px;
-}
-
-/* Numbered list items in AI answers */
-.ai-num {
-    color: var(--text-primary);
-    font-weight: 600;
-    font-family: var(--font-mono);
-    font-size: 0.82rem;
-    margin-right: 4px;
-}
-
-/* Clickable document references in AI text */
-.ai-doc-link {
-    font-family: var(--font-mono);
-    font-size: 0.74rem;
-    color: var(--text-tertiary);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--border);
-    padding: 1px 4px;
-    border-radius: 2px;
-    transition: all 0.15s ease;
-    cursor: pointer;
-}
-
-.ai-doc-link:hover {
-    color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.05);
-    border-bottom-color: var(--text-tertiary);
-}
-
-/* Sources list at bottom of AI answer */
-.ai-sources {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-}
-
-.ai-sources-label {
-    display: block;
-    font-family: var(--font-mono);
-    font-size: 0.62rem;
-    font-weight: 500;
-    letter-spacing: 0.18em;
-    color: var(--text-muted);
-    margin-bottom: 10px;
-}
-
-.ai-source-item {
-    display: block;
-    padding: 8px 12px;
-    margin-bottom: 4px;
-    border-radius: var(--radius);
-    text-decoration: none;
-    color: var(--text-secondary);
-    transition: all 0.15s ease;
-    cursor: pointer;
-    border: 1px solid transparent;
-}
-
-.ai-source-item:hover {
-    background: rgba(255, 255, 255, 0.03);
-    border-color: var(--border);
-    color: var(--text-primary);
-}
-
-.ai-source-id {
-    font-family: var(--font-mono);
-    font-size: 0.76rem;
-    font-weight: 500;
-    color: var(--text-secondary);
-    display: block;
-}
-
-.ai-source-detail {
     font-size: 0.72rem;
-    color: var(--text-muted);
-    margin-top: 2px;
-    display: block;
+    padding: 5px 12px;
+    opacity: 0.4;
 }
 
-.ai-source-doj {
-    display: block;
-    margin-top: 4px;
-}
-
-.ai-source-doj a {
-    font-family: var(--font-mono);
-    font-size: 0.66rem;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-tertiary);
-    text-decoration: none;
-    border-bottom: 1px dotted var(--border);
-    transition: all 0.15s ease;
-}
-
-.ai-source-doj a:hover {
-    color: var(--text-primary);
-    border-bottom-color: var(--text-tertiary);
+.ai-related .suggestion:hover {
+    opacity: 1;
 }
 
 /* ─── DOJ File Index ───────────────────────────────────────────────────────── */
@@ -1824,67 +1696,8 @@ mark, .highlight {
 
 /* ─── People Rank ──────────────────────────────────────────────────────────── */
 
-.people-rank {
-    font-family: var(--font-mono);
-    font-size: 0.68rem;
-    color: var(--text-muted);
-    min-width: 28px;
-    text-align: right;
-    margin-right: 10px;
-}
 
-/* ─── AI Follow-up Buttons ─────────────────────────────────────────────────── */
-
-.ai-followups {
-    margin-top: 20px;
-    padding-top: 16px;
-    border-top: 1px solid var(--border);
-}
-
-.ai-followups-label {
-    font-family: var(--font-mono);
-    font-size: 0.64rem;
-    letter-spacing: 0.12em;
-    color: var(--text-muted);
-    display: block;
-    margin-bottom: 10px;
-}
-
-.ai-followup-btn {
-    display: block;
-    width: 100%;
-    text-align: left;
-    font-family: var(--font-primary);
-    font-size: 0.82rem;
-    padding: 10px 16px;
-    margin-bottom: 6px;
-    border-radius: var(--radius);
-    border: 1px solid var(--border);
-    background: rgba(255, 255, 255, 0.02);
-    color: var(--text-secondary);
-    cursor: pointer;
-    transition: all 0.15s ease;
-}
-
-.ai-followup-btn:hover {
-    background: rgba(255, 255, 255, 0.06);
-    color: var(--text-primary);
-    border-color: var(--text-tertiary);
-}
-
-.ai-followup-btn::before {
-    content: '\2192  ';
-    color: var(--text-muted);
-}
-
-.ai-heading {
-    font-family: var(--font-primary);
-    font-weight: 600;
-    font-size: 0.9rem;
-    color: var(--text-primary);
-    margin: 16px 0 8px;
-    letter-spacing: 0.02em;
-}
+/* (old AI followup/heading styles removed — now in jeff-letter) */
 
 /* ─── Document Modal Formatting ────────────────────────────────────────────── */
 
