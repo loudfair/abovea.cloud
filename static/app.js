@@ -24,6 +24,7 @@
   const $modalBody   = document.getElementById('modal-body');
   const $hero        = document.getElementById('hero');
   const $resultsArea = document.getElementById('results-area');
+  const $input2      = document.getElementById('search-input-2');
 
   let currentMode = 'text';
   let currentOffset = 0;
@@ -77,6 +78,27 @@
   function showResults() {
     if ($hero) $hero.style.display = 'none';
     if ($resultsArea) $resultsArea.style.display = '';
+    // Sync inputs
+    if ($input2) $input2.value = $input.value;
+  }
+
+  // Go back to confession screen
+  function goHome() {
+    if ($hero) $hero.style.display = '';
+    if ($resultsArea) $resultsArea.style.display = 'none';
+    $input.value = '';
+    $aiAnswer.style.display = 'none';
+    $list.innerHTML = '';
+    $header.style.display = 'none';
+  }
+  window.goHome = goHome;
+
+  // Sync second input back to main
+  if ($input2) {
+    $input2.addEventListener('input', function () { $input.value = $input2.value; });
+    $input2.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') { $input.value = $input2.value; doAsk(); }
+    });
   }
 
   // ── Mode Switching ────────────────────────────────────────────────────────
