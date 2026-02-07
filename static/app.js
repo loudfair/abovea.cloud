@@ -10,13 +10,13 @@
   const $emailTo     = document.getElementById('email-to');
   const $limit       = document.getElementById('result-limit');
   const $typeFilter  = document.getElementById('type-filter');
-  const $typeLabel   = document.getElementById('type-filter-label');
+  const $typeLabel   = document.getElementById('type-filter-label') || document.createElement('div');
   const $header      = document.getElementById('results-header');
   const $count       = document.getElementById('results-count');
   const $matched     = document.getElementById('matched-names');
   const $list        = document.getElementById('results-list');
   const $loading     = document.getElementById('loading');
-  const $empty       = document.getElementById('empty-state');
+  const $empty       = document.getElementById('empty-state') || document.createElement('div');
   const $modal       = document.getElementById('doc-modal');
   const $modalTitle  = document.getElementById('modal-title');
   const $modalBody   = document.getElementById('modal-body');
