@@ -13,24 +13,19 @@
             font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'Inter', sans-serif;
             height: 100vh;
             display: flex;
+            flex-direction: column;
             align-items: center;
             justify-content: center;
             -webkit-font-smoothing: antialiased;
-            position: relative;
         }
 
         body::before {
             content: '';
             position: fixed;
-            top: 0;
-            left: 50%;
-            transform: translateX(-50%);
-            width: 100%;
-            height: 100%;
+            top: 0; left: 0; right: 0; bottom: 0;
             background: url('/static/bg.jpg') center top / cover no-repeat;
-            opacity: 0.05;
+            opacity: 0.04;
             pointer-events: none;
-            z-index: 0;
             filter: grayscale(100%) contrast(1.3);
         }
 
@@ -39,87 +34,75 @@
             z-index: 1;
             text-align: center;
             width: 100%;
-            max-width: 340px;
+            max-width: 320px;
             padding: 0 24px;
         }
 
-        .headline {
-            font-size: 1.4rem;
+        .welcome {
+            font-size: 1.1rem;
             font-weight: 200;
-            color: rgba(255, 255, 255, 0.72);
-            line-height: 1.6;
+            color: rgba(255, 255, 255, 0.55);
+            line-height: 1.7;
             margin-bottom: 48px;
-            letter-spacing: 0.02em;
+            letter-spacing: 0.03em;
+        }
+
+        .field {
+            position: relative;
         }
 
         .field input {
             width: 100%;
             background: transparent;
             border: none;
-            border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-            color: #fff;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+            color: rgba(255, 255, 255, 0.9);
             font-family: inherit;
-            font-size: 1rem;
+            font-size: 0.9rem;
             font-weight: 300;
             padding: 14px 0;
             text-align: center;
-            letter-spacing: 0.08em;
+            letter-spacing: 0.15em;
             outline: none;
             transition: border-color 0.3s ease;
+            -webkit-text-security: disc;
         }
 
         .field input::placeholder {
-            color: rgba(255, 255, 255, 0.12);
+            color: rgba(255, 255, 255, 0.08);
             font-weight: 300;
+            letter-spacing: 0.1em;
         }
 
         .field input:focus {
-            border-bottom-color: rgba(255, 255, 255, 0.35);
-        }
-
-        .enter {
-            background: none;
-            border: none;
-            color: rgba(255, 255, 255, 0.35);
-            font-family: inherit;
-            font-size: 0.7rem;
-            font-weight: 400;
-            letter-spacing: 0.2em;
-            text-transform: uppercase;
-            padding: 16px 48px;
-            cursor: pointer;
-            transition: color 0.3s ease;
-            margin-top: 24px;
-        }
-
-        .enter:hover {
-            color: rgba(255, 255, 255, 0.8);
+            border-bottom-color: rgba(255, 255, 255, 0.25);
         }
 
         .error {
-            font-size: 0.72rem;
-            color: rgba(255, 80, 80, 0.6);
-            margin-top: 20px;
-            height: 18px;
-            letter-spacing: 0.05em;
+            font-size: 0.7rem;
+            color: rgba(255, 80, 80, 0.5);
+            margin-top: 24px;
+            height: 16px;
+            letter-spacing: 0.06em;
+            font-weight: 300;
         }
 
         .trust {
             position: fixed;
-            bottom: 28px;
+            bottom: 24px;
             left: 50%;
             transform: translateX(-50%);
-            font-size: 0.6rem;
+            font-size: 0.55rem;
             font-weight: 400;
             letter-spacing: 0.15em;
-            color: rgba(255, 255, 255, 0.12);
+            color: rgba(255, 255, 255, 0.08);
             text-transform: uppercase;
             white-space: nowrap;
         }
 
         .trust span {
-            margin: 0 12px;
-            color: rgba(255, 255, 255, 0.06);
+            margin: 0 10px;
+            color: rgba(255, 255, 255, 0.04);
         }
 
         .shake { animation: shake 0.4s ease; }
@@ -132,19 +115,18 @@
         }
 
         @media (max-width: 640px) {
-            .headline { font-size: 1.2rem; margin-bottom: 40px; }
-            .trust { font-size: 0.5rem; bottom: 20px; }
+            .welcome { font-size: 1rem; margin-bottom: 40px; }
+            .trust { font-size: 0.48rem; bottom: 16px; }
         }
     </style>
 </head>
 <body>
 
     <div class="gate" id="gate">
-        <p class="headline">I'm Jeff. Time I confess.</p>
+        <p class="welcome">Welcome aboard the Lolita Express.<br>Buckle up.</p>
         <div class="field">
             <input type="password" id="pw" placeholder="" autocomplete="off" autofocus>
         </div>
-        <button class="enter" id="go" type="button">Enter</button>
         <div class="error" id="err"></div>
     </div>
 
@@ -153,14 +135,12 @@
     <script>
     (function () {
         var $pw = document.getElementById('pw');
-        var $go = document.getElementById('go');
         var $err = document.getElementById('err');
         var $gate = document.getElementById('gate');
 
         function submit() {
             var pw = $pw.value;
-            if (!pw) { $pw.focus(); return; }
-            $go.textContent = '...';
+            if (!pw) return;
             $err.textContent = '';
 
             fetch('/auth', {
@@ -173,8 +153,7 @@
                 if (res.data.ok) {
                     window.location.href = '/';
                 } else {
-                    $go.textContent = 'Enter';
-                    $err.textContent = res.data.error || 'wrong password';
+                    $err.textContent = res.data.error || 'no';
                     $gate.classList.remove('shake');
                     void $gate.offsetWidth;
                     $gate.classList.add('shake');
@@ -183,12 +162,10 @@
                 }
             })
             .catch(function () {
-                $go.textContent = 'Enter';
                 $err.textContent = 'connection error';
             });
         }
 
-        $go.addEventListener('click', submit);
         $pw.addEventListener('keydown', function (e) {
             if (e.key === 'Enter') submit();
         });
