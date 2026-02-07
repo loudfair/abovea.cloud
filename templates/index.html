@@ -8,85 +8,35 @@
 </head>
 <body>
 
-    <header>
-        <div class="header-inner">
-            <h1>E P S T E I N &ensp; F I L E S</h1>
-            <p class="jeff-statement">I left <span id="stat-pages">3,633,563</span> files on earth.<br>I'm here to answer for them.</p>
-        </div>
-    </header>
-
     <main>
 
-        <section class="stats-bar" id="stats-bar">
-            <div class="stat-item">
-                <span class="stat-value" id="stat-docs">&mdash;</span>
-                <span class="stat-label">I N D E X E D</span>
+        <section id="hero" class="hero">
+            <p class="hero-line">I left <strong>3,633,563</strong> files behind.</p>
+            <p class="hero-sub">Ask me anything. I'm honest now.</p>
+
+            <div class="hero-search">
+                <input type="text" id="search-input" placeholder="" autofocus>
+                <button id="ask-btn" onclick="doAsk()">ASK</button>
             </div>
-            <div class="stat-item">
-                <span class="stat-value" id="stat-people">&mdash;</span>
-                <span class="stat-label">N A M E S</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="stat-words">&mdash;</span>
-                <span class="stat-label">W O R D S</span>
-            </div>
-            <div class="stat-item">
-                <span class="stat-value" id="stat-vectors">&mdash;</span>
-                <span class="stat-label">C O N N E C T I O N S</span>
+
+            <div class="hero-suggestions">
+                <button class="suggestion" onclick="doAskDirect('Who flew on your plane?')">Who flew on your plane?</button>
+                <button class="suggestion" onclick="doAskDirect('Tell me about Ghislaine')">Tell me about Ghislaine</button>
+                <button class="suggestion" onclick="doAskDirect('What happened at Palm Beach?')">Palm Beach</button>
             </div>
         </section>
 
-        <section class="search-container">
-            <nav class="search-modes">
-                <button class="mode-btn active" data-mode="text">Full Text</button>
+        <section id="results-area" style="display:none">
+            <nav class="search-modes" id="search-modes">
+                <button class="mode-btn active" data-mode="text">Text</button>
                 <button class="mode-btn" data-mode="semantic">Semantic</button>
                 <button class="mode-btn" data-mode="name">Person</button>
                 <button class="mode-btn" data-mode="email">Email</button>
-                <button class="mode-btn" data-mode="people">People Index</button>
-                <button class="mode-btn" data-mode="browse">Browse All</button>
+                <button class="mode-btn" data-mode="people">People</button>
+                <button class="mode-btn" data-mode="browse">Browse</button>
                 <button class="mode-btn" data-mode="doj">Case Files</button>
             </nav>
 
-            <div class="search-box">
-                <div class="search-row">
-                    <input type="text" id="search-input" placeholder="Ask me anything..." autofocus>
-                    <button id="search-btn" onclick="doSearch()">SEARCH</button>
-                    <button id="ask-btn" onclick="doAsk()">ASK JEFF</button>
-                </div>
-
-                <div class="search-row" id="email-fields" style="display:none">
-                    <input type="text" id="email-from" placeholder="From (sender)">
-                    <input type="text" id="email-to" placeholder="To (recipient)">
-                </div>
-
-                <div class="search-options">
-                    <label>
-                        Results
-                        <select id="result-limit">
-                            <option value="10">10</option>
-                            <option value="20" selected>20</option>
-                            <option value="50">50</option>
-                            <option value="100">100</option>
-                        </select>
-                    </label>
-                    <label id="type-filter-label">
-                        Type
-                        <select id="type-filter">
-                            <option value="">All</option>
-                            <option value="email">Email</option>
-                            <option value="court">Court Filing</option>
-                            <option value="flight">Flight Log</option>
-                            <option value="report">Report</option>
-                            <option value="transcript">Transcript</option>
-                            <option value="financial">Financial</option>
-                            <option value="medical">Medical</option>
-                        </select>
-                    </label>
-                </div>
-            </div>
-        </section>
-
-        <section id="results-area">
             <div id="ai-answer" class="ai-answer" style="display:none">
                 <div class="ai-answer-header">
                     <span class="ai-label">J E F F</span>
@@ -107,19 +57,12 @@
                 <div class="spinner"></div>
                 <span>Searching...</span>
             </div>
-
-            <div id="empty-state" class="empty-state">
-                <p class="jeff-cta">Ask me anything. I'm honest now.</p>
-                <div class="suggestions">
-                    <button class="suggestion" onclick="doAskDirect('Who did you email the most?')">Who did you email the most?</button>
-                    <button class="suggestion" onclick="doAskDirect('Tell me about Ghislaine Maxwell')">Tell me about Ghislaine Maxwell</button>
-                    <button class="suggestion" onclick="doAskDirect('Who flew on your plane?')">Who flew on your plane?</button>
-                    <button class="suggestion" onclick="doAskDirect('What happened at Palm Beach?')">What happened at Palm Beach?</button>
-                    <button class="suggestion" onclick="quickSearch('from:epstein', 'email')">My emails</button>
-                    <button class="suggestion" onclick="doAskDirect('Who are the most mentioned people in your files?')">Most mentioned people</button>
-                </div>
-            </div>
         </section>
+
+        <div class="search-row" id="email-fields" style="display:none">
+            <input type="text" id="email-from" placeholder="From">
+            <input type="text" id="email-to" placeholder="To">
+        </div>
 
     </main>
 
@@ -133,9 +76,13 @@
         </div>
     </div>
 
-    <footer>
-        <p>All information sourced from public records</p>
-    </footer>
+    <!-- Hidden controls used by JS -->
+    <select id="result-limit" style="display:none">
+        <option value="20" selected>20</option>
+    </select>
+    <select id="type-filter" style="display:none">
+        <option value="" selected>All</option>
+    </select>
 
     <script src="/static/app.js"></script>
 </body>

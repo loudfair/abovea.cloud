@@ -22,10 +22,8 @@
   const $modal       = document.getElementById('doc-modal');
   const $modalTitle  = document.getElementById('modal-title');
   const $modalBody   = document.getElementById('modal-body');
-  const $statDocs    = document.getElementById('stat-docs');
-  const $statPeople  = document.getElementById('stat-people');
-  const $statWords   = document.getElementById('stat-words');
-  const $statVectors = document.getElementById('stat-vectors');
+  const $hero        = document.getElementById('hero');
+  const $resultsArea = document.getElementById('results-area');
 
   let currentMode = 'text';
   let currentOffset = 0;
@@ -68,34 +66,18 @@
 
   // ── Stats ─────────────────────────────────────────────────────────────────
 
-  function loadStats() {
-    // Load our stats + DOJ count in parallel
-    Promise.all([
-      fetch('/api/stats').then(function (r) { return r.ok ? r.json() : null; }),
-      fetch('/api/doj-index?limit=0').then(function (r) { return r.ok ? r.json() : null; }).catch(function () { return null; })
-    ]).then(function (results) {
-      var data = results[0];
-      var doj = results[1];
-      if (!data) return;
-
-      var dojCount = (doj && doj.total_all) ? doj.total_all : 0;
-      var totalFiles = data.total_documents + dojCount;
-
-      $statDocs.textContent    = formatNumber(totalFiles);
-      $statPeople.textContent  = formatNumber(data.unique_people);
-      $statWords.textContent   = formatNumber(data.unique_words);
-      $statVectors.textContent = formatNumber(data.with_embeddings);
-    }).catch(function () {
-      // silently leave as "--"
-    });
-  }
-
   // Ask Jeff directly (from suggestion buttons)
   function doAskDirect(question) {
     $input.value = question;
     doAsk();
   }
   window.doAskDirect = doAskDirect;
+
+  // Show results area and hide hero when a search/ask happens
+  function showResults() {
+    if ($hero) $hero.style.display = 'none';
+    if ($resultsArea) $resultsArea.style.display = '';
+  }
 
   // ── Mode Switching ────────────────────────────────────────────────────────
 
@@ -139,6 +121,8 @@
 
     // people mode allows empty query (browse all)
     if (!query && currentMode !== 'people') return;
+
+    showResults();
 
     // Pagination: if pageOffset given use it, else reset to 0
     var offset = (typeof pageOffset === 'number') ? pageOffset : 0;
@@ -427,6 +411,8 @@
   function doAsk() {
     var question = $input.value.trim();
     if (!question) return;
+
+    showResults();
 
     // Show loading state
     $aiAnswer.style.display = 'block';
@@ -925,7 +911,5 @@
   });
 
   // ── Init ──────────────────────────────────────────────────────────────────
-
-  loadStats();
 
 })();
