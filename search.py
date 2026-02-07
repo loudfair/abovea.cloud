@@ -266,8 +266,9 @@ def name_search(name: str, n_results: int = 20):
 
 
 def email_search(query: str = None, from_addr: str = None, to_addr: str = None,
+                 cc_addr: str = None, bcc_addr: str = None,
                  n_results: int = 20):
-    """Search emails by sender, recipient, or content."""
+    """Search emails by sender, recipient, CC, BCC, or content."""
     meta = get_metadata()
     all_records = meta["indexed"] + meta["text_only"]
     
@@ -277,6 +278,10 @@ def email_search(query: str = None, from_addr: str = None, to_addr: str = None,
         search_terms.append(("from", from_addr.lower()))
     if to_addr:
         search_terms.append(("to", to_addr.lower()))
+    if cc_addr:
+        search_terms.append(("cc", cc_addr.lower()))
+    if bcc_addr:
+        search_terms.append(("bcc", bcc_addr.lower()))
     if query:
         search_terms.append(("text", query.lower()))
     
@@ -299,6 +304,22 @@ def email_search(query: str = None, from_addr: str = None, to_addr: str = None,
             elif field == "to":
                 if term in rec_meta.get("to", "").lower():
                     score += 5
+                else:
+                    match = False
+            elif field == "cc":
+                cc_val = rec_meta.get("cc", "")
+                if isinstance(cc_val, list):
+                    cc_val = " ".join(cc_val)
+                if term in cc_val.lower():
+                    score += 4
+                else:
+                    match = False
+            elif field == "bcc":
+                bcc_val = rec_meta.get("bcc", "")
+                if isinstance(bcc_val, list):
+                    bcc_val = " ".join(bcc_val)
+                if term in bcc_val.lower():
+                    score += 4
                 else:
                     match = False
             elif field == "text":
@@ -366,8 +387,23 @@ def format_result(result, rank: int, full: bool = False):
             parts.append(f"From: {meta['from']}")
         if meta.get("to"):
             parts.append(f"To: {meta['to']}")
+        if meta.get("cc"):
+            cc_val = meta["cc"]
+            if isinstance(cc_val, list):
+                cc_val = ", ".join(cc_val)
+            parts.append(f"CC: {cc_val}")
+        if meta.get("bcc"):
+            bcc_val = meta["bcc"]
+            if isinstance(bcc_val, list):
+                bcc_val = ", ".join(bcc_val)
+            parts.append(f"BCC: {bcc_val}")
         if meta.get("subject"):
             parts.append(f"Subject: {meta['subject']}")
+        if meta.get("attachments"):
+            att_val = meta["attachments"]
+            if isinstance(att_val, list):
+                att_val = ", ".join(str(a) for a in att_val)
+            parts.append(f"Attachments: {att_val}")
         body_parts.append("[bold]Email:[/bold] " + " | ".join(parts))
     
     # Text preview (load full text from file on demand)
@@ -547,13 +583,15 @@ def ask_ai(question: str, context_docs: list):
 @click.option("--email", "-e", is_flag=True, help="Search emails")
 @click.option("--from", "-f", "from_addr", help="Email sender filter")
 @click.option("--to", "to_addr", help="Email recipient filter")
+@click.option("--cc", "cc_addr", help="Email CC filter")
+@click.option("--bcc", "bcc_addr", help="Email BCC filter")
 @click.option("--semantic", is_flag=True, help="Use FAISS semantic search (needs OPENAI_API_KEY)")
 @click.option("--ask", "-a", is_flag=True, help="Get AI-synthesized answer")
 @click.option("--results", "-r", default=10, help="Number of results")
 @click.option("--stats", "-s", is_flag=True, help="Show statistics")
 @click.option("--people", "-p", is_flag=True, help="List all indexed people")
 @click.option("--full", is_flag=True, help="Show full document text")
-def main(query, name, doc_type, email, from_addr, to_addr, semantic, ask, results, stats, people, full):
+def main(query, name, doc_type, email, from_addr, to_addr, cc_addr, bcc_addr, semantic, ask, results, stats, people, full):
     """Search the Epstein Files archive (63K+ documents).
     
     \b
@@ -573,19 +611,20 @@ def main(query, name, doc_type, email, from_addr, to_addr, semantic, ask, result
         list_people(query)
         return
     
-    if not query and not name and not from_addr and not to_addr:
+    if not query and not name and not from_addr and not to_addr and not cc_addr and not bcc_addr:
         console.print("[red]Provide a search query, --name, --stats, or --people[/]")
         console.print("[dim]Run: python search.py --help[/]")
         return
     
-    search_query = query or name or from_addr or to_addr
+    search_query = query or name or from_addr or to_addr or cc_addr or bcc_addr
     console.print(f"\n[bold]Searching:[/bold] [cyan]{search_query}[/cyan]\n")
     
     # Run search
     if name:
         search_results = name_search(name, n_results=results)
-    elif email or from_addr or to_addr:
-        search_results = email_search(query=query, from_addr=from_addr, to_addr=to_addr, n_results=results)
+    elif email or from_addr or to_addr or cc_addr or bcc_addr:
+        search_results = email_search(query=query, from_addr=from_addr, to_addr=to_addr,
+                                      cc_addr=cc_addr, bcc_addr=bcc_addr, n_results=results)
     elif semantic:
         search_results = semantic_search(search_query, n_results=results)
     else:

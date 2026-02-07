@@ -272,19 +272,99 @@ def parse_hf_emails():
         return []
     
     df = pd.read_parquet(pq_path)
+    cols = set(df.columns)
     records = []
     
     for _, row in df.iterrows():
-        text = row.get("message_html", "") or row.get("subject", "")
-        if not text:
+        body = str(row.get("message_html", "") or row.get("body", "") or "")
+        subject = str(row.get("subject", "") or "")
+
+        # Prepend subject to body so it's searchable
+        if subject and subject != "nan":
+            text = f"Subject: {subject}\n\n{body}"
+        else:
+            text = body
+
+        if not text or not text.strip():
             continue
         
+        # --- From / To ---
         people = []
-        if row.get("from_address"):
-            people.append(str(row["from_address"]))
-        if row.get("to_address"):
-            people.append(str(row["to_address"]))
-        
+        from_addr = str(row.get("from_address", "") or "")
+        to_addr = str(row.get("to_address", "") or "")
+        if from_addr and from_addr != "nan":
+            people.append(from_addr)
+        if to_addr and to_addr != "nan":
+            people.append(to_addr)
+
+        # --- CC / BCC ---
+        cc_val = ""
+        for cc_col in ("cc", "cc_address"):
+            if cc_col in cols:
+                cc_val = str(row.get(cc_col, "") or "")
+                if cc_val and cc_val != "nan":
+                    break
+                cc_val = ""
+
+        bcc_val = ""
+        for bcc_col in ("bcc", "bcc_address"):
+            if bcc_col in cols:
+                bcc_val = str(row.get(bcc_col, "") or "")
+                if bcc_val and bcc_val != "nan":
+                    break
+                bcc_val = ""
+
+        # Add CC/BCC addresses to the people list
+        if cc_val:
+            for addr in cc_val.split(","):
+                addr = addr.strip()
+                if addr and addr != "nan":
+                    people.append(addr)
+        if bcc_val:
+            for addr in bcc_val.split(","):
+                addr = addr.strip()
+                if addr and addr != "nan":
+                    people.append(addr)
+
+        # --- Date ---
+        date_val = ""
+        for date_col in ("timestamp_raw", "date", "sent_date", "created_at"):
+            if date_col in cols:
+                date_val = str(row.get(date_col, "") or "")
+                if date_val and date_val != "nan":
+                    break
+                date_val = ""
+
+        # --- Build extra_meta ---
+        extra_meta = {
+            "subject": subject if subject != "nan" else "",
+            "from": from_addr if from_addr != "nan" else "",
+            "to": to_addr if to_addr != "nan" else "",
+        }
+
+        if cc_val:
+            extra_meta["cc"] = cc_val
+        if bcc_val:
+            extra_meta["bcc"] = bcc_val
+
+        # --- Attachments ---
+        attachments_val = ""
+        for att_col in ("attachments", "attachment_names"):
+            if att_col in cols:
+                attachments_val = str(row.get(att_col, "") or "")
+                if attachments_val and attachments_val != "nan":
+                    break
+                attachments_val = ""
+        if attachments_val:
+            extra_meta["attachments"] = attachments_val
+
+        # --- Reply / threading fields ---
+        for meta_col in ("reply_to", "in_reply_to", "message_id"):
+            if meta_col in cols:
+                val = str(row.get(meta_col, "") or "")
+                if val and val != "nan":
+                    extra_meta[meta_col] = val
+
         record = make_record(
             text=text,
             source="hf-emails",
@@ -292,12 +372,8 @@ def parse_hf_emails():
             filename=str(row.get("source_filename", "")),
             people=people,
             doc_type="Email",
-            date=str(row.get("timestamp_raw", "")),
-            extra_meta={
-                "subject": str(row.get("subject", "")),
-                "from": str(row.get("from_address", "")),
-                "to": str(row.get("to_address", "")),
-            }
+            date=date_val,
+            extra_meta=extra_meta,
         )
         if record:
             records.append(record)
@@ -551,21 +627,22 @@ def parse_hf_house_emails():
         console.print(f"  [yellow]Could not identify text column in house emails (cols: {list(df.columns)}), skipping[/]")
         return []
 
+    cols = set(df.columns)
     records = []
     for idx, row in df.iterrows():
-        text = str(row.get(text_col, ""))
-        if not text.strip():
+        body = str(row.get(text_col, ""))
+        if not body.strip():
             continue
 
         people = []
         from_addr = str(row.get("from", row.get("from_address", row.get("sender", "")))) if any(
-            c in df.columns for c in ("from", "from_address", "sender")
+            c in cols for c in ("from", "from_address", "sender")
         ) else ""
         to_addr = str(row.get("to", row.get("to_address", row.get("recipient", "")))) if any(
-            c in df.columns for c in ("to", "to_address", "recipient")
+            c in cols for c in ("to", "to_address", "recipient")
         ) else ""
         subject = str(row.get("subject", row.get("subject_line", ""))) if any(
-            c in df.columns for c in ("subject", "subject_line")
+            c in cols for c in ("subject", "subject_line")
         ) else ""
 
         if from_addr and from_addr != "nan":
@@ -573,17 +650,88 @@ def parse_hf_house_emails():
         if to_addr and to_addr != "nan":
             people.append(to_addr)
 
+        # --- CC / BCC ---
+        cc_val = ""
+        for cc_col in ("cc", "cc_address"):
+            if cc_col in cols:
+                cc_val = str(row.get(cc_col, "") or "")
+                if cc_val and cc_val != "nan":
+                    break
+                cc_val = ""
+
+        bcc_val = ""
+        for bcc_col in ("bcc", "bcc_address"):
+            if bcc_col in cols:
+                bcc_val = str(row.get(bcc_col, "") or "")
+                if bcc_val and bcc_val != "nan":
+                    break
+                bcc_val = ""
+
+        # Add CC/BCC addresses to the people list
+        if cc_val:
+            for addr in cc_val.split(","):
+                addr = addr.strip()
+                if addr and addr != "nan":
+                    people.append(addr)
+        if bcc_val:
+            for addr in bcc_val.split(","):
+                addr = addr.strip()
+                if addr and addr != "nan":
+                    people.append(addr)
+
+        # --- Prepend subject to body so it's searchable ---
+        if subject and subject != "nan" and body.strip():
+            text = f"Subject: {subject}\n\n{body}"
+        else:
+            text = body
+
+        # --- Date ---
+        date_val = ""
+        for date_col in ("timestamp_raw", "date", "timestamp", "sent_date", "created_at"):
+            if date_col in cols:
+                date_val = str(row.get(date_col, "") or "")
+                if date_val and date_val != "nan":
+                    break
+                date_val = ""
+
+        # --- Build extra_meta ---
+        extra_meta = {
+            "from": from_addr if from_addr != "nan" else "",
+            "to": to_addr if to_addr != "nan" else "",
+            "subject": subject if subject != "nan" else "",
+        }
+
+        if cc_val:
+            extra_meta["cc"] = cc_val
+        if bcc_val:
+            extra_meta["bcc"] = bcc_val
+
+        # --- Attachments ---
+        attachments_val = ""
+        for att_col in ("attachments", "attachment_names"):
+            if att_col in cols:
+                attachments_val = str(row.get(att_col, "") or "")
+                if attachments_val and attachments_val != "nan":
+                    break
+                attachments_val = ""
+        if attachments_val:
+            extra_meta["attachments"] = attachments_val
+
+        # --- Reply / threading fields ---
+        for meta_col in ("reply_to", "in_reply_to", "message_id"):
+            if meta_col in cols:
+                val = str(row.get(meta_col, "") or "")
+                if val and val != "nan":
+                    extra_meta[meta_col] = val
+
         record = make_record(
             text=text,
             source="hf-house-emails",
             doc_id=str(row.get("id", row.get("message_id", idx))),
             people=people,
             doc_type="Email",
-            extra_meta={
-                "from": from_addr if from_addr != "nan" else "",
-                "to": to_addr if to_addr != "nan" else "",
-                "subject": subject if subject != "nan" else "",
-            },
+            date=date_val,
+            extra_meta=extra_meta,
         )
         if record:
             records.append(record)
@@ -844,6 +992,20 @@ def parse_doc_explorer():
                     to_col = cols_lower.get("to", cols_lower.get("to_address", cols_lower.get("recipient")))
                     id_col = cols_lower.get("id", cols_lower.get("doc_id", cols_lower.get("document_id")))
 
+                    # Detect optional email / metadata columns
+                    subject_col = cols_lower.get("subject", cols_lower.get("subject_line"))
+                    cc_col = cols_lower.get("cc", cols_lower.get("cc_address"))
+                    bcc_col = cols_lower.get("bcc", cols_lower.get("bcc_address"))
+                    date_col = None
+                    for _dc in ("date", "timestamp", "sent_date", "created_at", "timestamp_raw"):
+                        if _dc in cols_lower:
+                            date_col = cols_lower[_dc]
+                            break
+                    attachments_col = cols_lower.get("attachments", cols_lower.get("attachment_names"))
+                    reply_to_col = cols_lower.get("reply_to")
+                    in_reply_to_col = cols_lower.get("in_reply_to")
+                    message_id_col = cols_lower.get("message_id")
+
                     cursor.execute(f"SELECT * FROM '{table}'")
                     col_names = [desc[0] for desc in cursor.description]
 
@@ -866,11 +1028,69 @@ def parse_doc_explorer():
                         if to_val and to_val != "None" and to_val != "nan":
                             people.append(to_val)
 
+                        # --- Subject ---
+                        subject_val = str(row_dict.get(subject_col, "")) if subject_col else ""
+                        if subject_val in ("None", "nan"):
+                            subject_val = ""
+
+                        # --- CC / BCC ---
+                        cc_val = str(row_dict.get(cc_col, "")) if cc_col else ""
+                        if cc_val in ("None", "nan"):
+                            cc_val = ""
+                        bcc_val = str(row_dict.get(bcc_col, "")) if bcc_col else ""
+                        if bcc_val in ("None", "nan"):
+                            bcc_val = ""
+
+                        if cc_val:
+                            for addr in cc_val.split(","):
+                                addr = addr.strip()
+                                if addr and addr not in ("None", "nan"):
+                                    people.append(addr)
+                        if bcc_val:
+                            for addr in bcc_val.split(","):
+                                addr = addr.strip()
+                                if addr and addr not in ("None", "nan"):
+                                    people.append(addr)
+
+                        # --- Date ---
+                        date_val = str(row_dict.get(date_col, "")) if date_col else ""
+                        if date_val in ("None", "nan"):
+                            date_val = ""
+
+                        # --- Prepend subject to body so it's searchable ---
+                        if subject_val and text.strip():
+                            text = f"Subject: {subject_val}\n\n{text}"
+
+                        # --- Build extra_meta ---
                         extra = {}
                         if from_val and from_val != "None":
                             extra["from"] = from_val
                         if to_val and to_val != "None":
                             extra["to"] = to_val
+                        if subject_val:
+                            extra["subject"] = subject_val
+                        if cc_val:
+                            extra["cc"] = cc_val
+                        if bcc_val:
+                            extra["bcc"] = bcc_val
+
+                        # --- Attachments ---
+                        attachments_val = str(row_dict.get(attachments_col, "")) if attachments_col else ""
+                        if attachments_val in ("None", "nan"):
+                            attachments_val = ""
+                        if attachments_val:
+                            extra["attachments"] = attachments_val
+
+                        # --- Reply / threading fields ---
+                        for meta_col_name, meta_col_ref in (
+                            ("reply_to", reply_to_col),
+                            ("in_reply_to", in_reply_to_col),
+                            ("message_id", message_id_col),
+                        ):
+                            if meta_col_ref:
+                                val = str(row_dict.get(meta_col_ref, ""))
+                                if val and val not in ("None", "nan"):
+                                    extra[meta_col_name] = val
 
                         record = make_record(
                             text=text,
@@ -879,6 +1099,7 @@ def parse_doc_explorer():
                             filename=db_path.name,
                             people=people,
                             doc_type=doc_type,
+                            date=date_val,
                             extra_meta=extra if extra else None,
                         )
                         if record:

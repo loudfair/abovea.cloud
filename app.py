@@ -291,7 +291,8 @@ def _parse_gmail_query(query_str: str):
 
     Supported operators:
         from:value, to:value, subject:value, cc:value, bcc:value,
-        after:YYYY-MM-DD, before:YYYY-MM-DD, has:attachment
+        after:YYYY-MM-DD (alias: newer:), before:YYYY-MM-DD (alias: older:),
+        has:attachment
 
     Bare words (not part of an operator) become free-text search terms.
     Quoted phrases like "some phrase" are kept together.
@@ -332,9 +333,9 @@ def _parse_gmail_query(query_str: str):
 
         if op in ("from", "to", "cc", "bcc", "subject"):
             operators[op].append(val.lower())
-        elif op == "after":
+        elif op in ("after", "newer"):
             operators["after"] = val
-        elif op == "before":
+        elif op in ("before", "older"):
             operators["before"] = val
         elif op == "has":
             operators["has"].append(val.lower())
@@ -363,7 +364,7 @@ def _parse_date_safe(date_str):
 def gmail_style_email_search(query_str: str, n_results: int = 50):
     """Gmail-style email search supporting operators and free text.
 
-    Operators: from:, to:, cc:, bcc:, subject:, after:, before:, has:attachment
+    Operators: from:, to:, cc:, bcc:, subject:, after:/newer:, before:/older:, has:attachment
     Bare words search across subject and body text.
 
     Returns (results_list, total_count) where each result is a dict with
@@ -499,6 +500,8 @@ def gmail_style_email_search(query_str: str, n_results: int = 50):
                     score += 6  # subject match is high value
                 elif word_lower in rec_from or word_lower in rec_to:
                     score += 5
+                elif word_lower in rec_cc or word_lower in rec_bcc:
+                    score += 4
                 elif word_lower in body:
                     score += 3
                 else:
@@ -613,6 +616,8 @@ def serialize_result(r):
         "text_full": full_text,
         "email_from": meta.get("from", ""),
         "email_to": meta.get("to", ""),
+        "email_cc": meta.get("cc", ""),
+        "email_bcc": meta.get("bcc", ""),
         "email_subject": meta.get("subject", ""),
     }
 

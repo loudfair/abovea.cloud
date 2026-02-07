@@ -102,7 +102,7 @@
       text:     'Search 63K documents... e.g. "flight logs" or "palm beach"',
       semantic: 'Semantic search... e.g. "trafficking minors across state lines"',
       name:     'Search by person name...',
-      email:    'Try: from:epstein to:maxwell subject:meeting after:2005-01-01',
+      email:    'Try: from:epstein to:maxwell subject:meeting cc:kellen has:attachment after:2005-01-01',
       people:   'Filter people...'
     };
     $input.placeholder = placeholders[mode] || placeholders.text;
@@ -273,7 +273,7 @@
       $list.innerHTML = '<div class="empty-state" style="padding:30px;">'
         + '<p>No emails found. Try different operators.</p>'
         + '<p style="margin-top:8px;color:var(--text-muted);">'
-        + 'Syntax: from:name to:name subject:keyword after:YYYY-MM-DD before:YYYY-MM-DD has:attachment</p></div>';
+        + 'Syntax: from:name to:name cc:name bcc:name subject:keyword after:YYYY-MM-DD before:YYYY-MM-DD has:attachment</p></div>';
       return;
     }
 
@@ -291,6 +291,14 @@
       var docId   = escapeHtml(r.doc_id || '');
       var source  = escapeHtml(r.source || '');
 
+      // attachments — may be a string or an array
+      var attachments = '';
+      if (r.attachments) {
+        attachments = Array.isArray(r.attachments)
+          ? r.attachments.map(function (a) { return escapeHtml(typeof a === 'string' ? a : a.name || a.filename || String(a)); }).join(', ')
+          : escapeHtml(String(r.attachments));
+      }
+
       html += '<div class="result-card email-card">'
         + '<div class="card-header" onclick="toggleCard(this)">'
         +   '<div class="card-rank">' + rank + '</div>'
@@ -301,14 +309,19 @@
         +       (date ? '<span class="card-date">' + date + '</span>' : '')
         +     '</div>'
         +     '<div class="card-email-meta">'
-        +       '<span>From:</span> ' + from;
+        +       '<div class="email-from"><span>From:</span> ' + from + '</div>';
 
-      if (to)  html += '<br><span>To:</span> ' + to;
-      if (cc)  html += '<br><span>CC:</span> ' + cc;
-      if (bcc) html += '<br><span>BCC:</span> ' + bcc;
+      if (to)  html += '<div class="email-to"><span>To:</span> ' + to + '</div>';
+      if (cc)  html += '<div class="email-cc"><span>CC:</span> ' + cc + '</div>';
+      if (bcc) html += '<div class="email-bcc"><span>BCC:</span> ' + bcc + '</div>';
 
-      html += '</div>'
-        +     (preview ? '<div class="card-preview">' + preview + '</div>' : '')
+      html += '</div>';
+
+      if (attachments) {
+        html += '<div class="email-attachments">\u{1F4CE} ' + attachments + '</div>';
+      }
+
+      html += (preview ? '<div class="card-preview">' + preview + '</div>' : '')
         +     '<div class="card-source-row">'
         +       (docId ? '<span class="card-doc-id">' + docId + '</span>' : '')
         +       (source ? '<span class="card-source">Source: ' + source + '</span>' : '')
