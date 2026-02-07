@@ -91,8 +91,8 @@
       btn.classList.toggle('active', btn.getAttribute('data-mode') === mode);
     });
 
-    // email fields
-    $emailFields.style.display = mode === 'email' ? 'flex' : 'none';
+    // email fields — old from/to fields hidden; Gmail-style uses the main input
+    $emailFields.style.display = 'none';
 
     // type filter visibility
     $typeLabel.style.display = (mode === 'text') ? '' : 'none';
@@ -102,7 +102,7 @@
       text:     'Search 63K documents... e.g. "flight logs" or "palm beach"',
       semantic: 'Semantic search... e.g. "trafficking minors across state lines"',
       name:     'Search by person name...',
-      email:    'Search email content...',
+      email:    'Try: from:epstein to:maxwell subject:meeting after:2005-01-01',
       people:   'Filter people...'
     };
     $input.placeholder = placeholders[mode] || placeholders.text;
@@ -127,17 +127,13 @@
     if (currentMode === 'people') {
       url = '/api/people?limit=' + encodeURIComponent($limit.value);
       if (query) url += '&q=' + encodeURIComponent(query);
+    } else if (currentMode === 'email') {
+      url = '/api/email-search?q=' + encodeURIComponent(query)
+          + '&limit=' + encodeURIComponent($limit.value);
     } else {
       url = '/api/search?q=' + encodeURIComponent(query)
           + '&mode=' + encodeURIComponent(currentMode)
           + '&limit=' + encodeURIComponent($limit.value);
-
-      if (currentMode === 'email') {
-        var from = $emailFrom.value.trim();
-        var to   = $emailTo.value.trim();
-        if (from) url += '&from=' + encodeURIComponent(from);
-        if (to)   url += '&to='   + encodeURIComponent(to);
-      }
 
       var typeVal = $typeFilter.value;
       if (typeVal && currentMode === 'text') {
@@ -154,6 +150,8 @@
         $loading.style.display = 'none';
         if (currentMode === 'people') {
           renderPeople(data);
+        } else if (currentMode === 'email') {
+          renderEmailResults(data);
         } else {
           renderResults(data);
         }
@@ -259,6 +257,74 @@
     $list.innerHTML = html;
   }
 
+  // ── Render Email Results ──────────────────────────────────────────────────
+
+  function renderEmailResults(data) {
+    var results = data.results || [];
+    var total   = data.total_count != null ? data.total_count : results.length;
+
+    // header
+    $count.textContent = formatNumber(total) + ' email' + (total !== 1 ? 's' : '') + ' found';
+    $matched.textContent = '';
+    $matched.style.display = 'none';
+    $header.style.display = 'flex';
+
+    if (!results.length) {
+      $list.innerHTML = '<div class="empty-state" style="padding:30px;">'
+        + '<p>No emails found. Try different operators.</p>'
+        + '<p style="margin-top:8px;color:var(--text-muted);">'
+        + 'Syntax: from:name to:name subject:keyword after:YYYY-MM-DD before:YYYY-MM-DD has:attachment</p></div>';
+      return;
+    }
+
+    var html = '';
+    results.forEach(function (r, i) {
+      var rank    = i + 1;
+      var from    = escapeHtml(r.from || 'Unknown sender');
+      var to      = escapeHtml(r.to || '');
+      var cc      = escapeHtml(r.cc || '');
+      var bcc     = escapeHtml(r.bcc || '');
+      var subject = escapeHtml(r.subject || '(no subject)');
+      var date    = escapeHtml(r.date || '');
+      var preview = escapeHtml(r.body_preview || '');
+      var score   = r.score != null ? r.score : '';
+      var docId   = escapeHtml(r.doc_id || '');
+      var source  = escapeHtml(r.source || '');
+
+      html += '<div class="result-card email-card">'
+        + '<div class="card-header" onclick="toggleCard(this)">'
+        +   '<div class="card-rank">' + rank + '</div>'
+        +   '<div class="card-info">'
+        +     '<div class="card-title-row">'
+        +       '<span class="card-type type-email">Email</span>'
+        +       '<span class="email-subject">' + subject + '</span>'
+        +       (date ? '<span class="card-date">' + date + '</span>' : '')
+        +     '</div>'
+        +     '<div class="card-email-meta">'
+        +       '<span>From:</span> ' + from;
+
+      if (to)  html += '<br><span>To:</span> ' + to;
+      if (cc)  html += '<br><span>CC:</span> ' + cc;
+      if (bcc) html += '<br><span>BCC:</span> ' + bcc;
+
+      html += '</div>'
+        +     (preview ? '<div class="card-preview">' + preview + '</div>' : '')
+        +     '<div class="card-source-row">'
+        +       (docId ? '<span class="card-doc-id">' + docId + '</span>' : '')
+        +       (source ? '<span class="card-source">Source: ' + source + '</span>' : '')
+        +     '</div>'
+        +   '</div>'
+        +   (score ? '<div class="card-score">' + score + '</div>' : '')
+        + '</div>'
+        + '<div class="card-expanded">'
+        +   '<div class="card-full-text">' + preview + '</div>'
+        + '</div>'
+        + '</div>';
+    });
+
+    $list.innerHTML = html;
+  }
+
   // ── Toggle Card Expanded ──────────────────────────────────────────────────
 
   function toggleCard(headerEl) {
@@ -301,20 +367,17 @@
   // ── Quick Search (for suggestion chips & people clicks) ───────────────────
 
   function quickSearch(query, mode, fromAddr) {
-    $input.value = query || '';
-
-    if (mode) {
-      setMode(mode);
-    }
-
-    if (fromAddr && currentMode === 'email') {
-      $emailFrom.value = fromAddr;
-    }
-    // if called with fromAddr but not in email mode, switch
-    if (fromAddr && mode !== 'email') {
+    if (fromAddr) {
+      // Build a Gmail-style query with from: operator
       setMode('email');
-      $emailFrom.value = fromAddr;
+      var gmailQuery = 'from:' + fromAddr;
+      if (query) gmailQuery += ' ' + query;
+      $input.value = gmailQuery;
+    } else {
       $input.value = query || '';
+      if (mode) {
+        setMode(mode);
+      }
     }
 
     doSearch();

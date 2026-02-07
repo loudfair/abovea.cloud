@@ -532,6 +532,40 @@ main {
     color: var(--text-muted);
 }
 
+/* ─── Email Card Enhancements ─────────────────────────────────────────────── */
+.email-card .card-title-row {
+    gap: 8px;
+}
+
+.email-subject {
+    font-weight: 400;
+    font-size: 0.92rem;
+    color: var(--text-primary);
+    letter-spacing: 0.01em;
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.card-source-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 6px;
+}
+
+.card-source-row .card-doc-id {
+    font-size: 0.72rem;
+    color: var(--text-muted);
+    font-family: var(--font-mono);
+}
+
+.card-source-row .card-source {
+    margin-top: 0;
+}
+
 /* ─── Card People Tags ────────────────────────────────────────────────────── */
 .card-people {
     display: flex;

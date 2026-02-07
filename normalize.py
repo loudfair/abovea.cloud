@@ -896,6 +896,146 @@ def parse_doc_explorer():
     return records
 
 
+def parse_kaggle_franciskarajki():
+    """Parse Kaggle franciskarajki/epstein-documents (Giuffre v. Maxwell PDFs)."""
+    console.print("[bold blue]Parsing kaggle-franciskarajki (Giuffre v. Maxwell docs)...[/]")
+    src_dir = DOWNLOADS / "kaggle" / "franciskarajki"
+
+    if not src_dir.exists():
+        console.print("  [yellow]kaggle/franciskarajki dir not found, skipping[/]")
+        return []
+
+    records = []
+
+    # 1. Look for .txt files (extracted text from PDFs via pdftotext or similar)
+    txt_files = list(src_dir.rglob("*.txt"))
+
+    # 2. Look for metadata files (.csv or .jsonl)
+    csv_files = list(src_dir.rglob("*.csv"))
+    jsonl_files = list(src_dir.rglob("*.jsonl"))
+
+    # Load metadata from CSV if available
+    meta_map = {}
+    for csv_path in csv_files:
+        try:
+            df = pd.read_csv(csv_path, encoding="utf-8", on_bad_lines="skip")
+            cols_lower = {c.lower(): c for c in df.columns}
+            # Try to map filename -> row metadata
+            fname_col = None
+            for candidate in ("filename", "file", "name", "document", "file_name", "pdf"):
+                if candidate in cols_lower:
+                    fname_col = cols_lower[candidate]
+                    break
+            if fname_col:
+                for _, row in df.iterrows():
+                    key = str(row.get(fname_col, ""))
+                    if key and key != "nan":
+                        meta_map[key] = {c: str(row.get(c, "")) for c in df.columns}
+        except Exception:
+            continue
+
+    # Load metadata from JSONL if available
+    for jl_path in jsonl_files:
+        try:
+            with open(jl_path) as f:
+                for line in f:
+                    line = line.strip()
+                    if not line:
+                        continue
+                    obj = json.loads(line)
+                    key = obj.get("filename", obj.get("file", obj.get("name", "")))
+                    if key:
+                        meta_map[key] = {k: str(v) for k, v in obj.items()}
+        except Exception:
+            continue
+
+    # 3. If no text files found, check for PDFs and skip with a note
+    if not txt_files:
+        pdf_files = list(src_dir.rglob("*.pdf"))
+        if pdf_files:
+            console.print(
+                f"  [yellow]Found {len(pdf_files)} PDFs but no extracted .txt files — "
+                f"run pdftotext first, skipping[/]"
+            )
+        else:
+            console.print("  [yellow]No .txt or .pdf files found, skipping[/]")
+        return []
+
+    for txt_file in txt_files:
+        if txt_file.name.upper().startswith(("README", "LICENSE", "CHANGELOG")):
+            continue
+        try:
+            text = txt_file.read_text(encoding="utf-8", errors="replace")
+            if len(text.strip()) < 50:
+                continue
+
+            doc_id = txt_file.stem
+            # Try to match metadata by filename (with or without extension variants)
+            file_meta = (
+                meta_map.get(txt_file.name)
+                or meta_map.get(doc_id)
+                or meta_map.get(doc_id + ".pdf")
+                or {}
+            )
+
+            # 4. Split large files into ~2000 char chunks on paragraph boundaries
+            if len(text) <= 2500:
+                record = make_record(
+                    text=text,
+                    source="kaggle-franciskarajki",
+                    doc_id=doc_id,
+                    filename=txt_file.name,
+                    doc_type="court_document",
+                    extra_meta={"origin": "giuffre_v_maxwell"} if not file_meta else {
+                        "origin": "giuffre_v_maxwell",
+                        **{k: v for k, v in file_meta.items() if v and v != "nan"},
+                    },
+                )
+                if record:
+                    records.append(record)
+            else:
+                # Split on paragraph boundaries (double newlines)
+                paragraphs = text.split("\n\n")
+                chunks = []
+                current_chunk = []
+                current_len = 0
+
+                for para in paragraphs:
+                    para_len = len(para)
+                    if current_len + para_len > 2000 and current_chunk:
+                        chunks.append("\n\n".join(current_chunk))
+                        current_chunk = [para]
+                        current_len = para_len
+                    else:
+                        current_chunk.append(para)
+                        current_len += para_len
+                if current_chunk:
+                    chunks.append("\n\n".join(current_chunk))
+
+                for i, chunk in enumerate(chunks):
+                    record = make_record(
+                        text=chunk,
+                        source="kaggle-franciskarajki",
+                        doc_id=f"{doc_id}_chunk{i}",
+                        filename=txt_file.name,
+                        doc_type="court_document",
+                        extra_meta={
+                            "origin": "giuffre_v_maxwell",
+                            "chunk_index": i,
+                            "total_chunks": len(chunks),
+                            **({k: v for k, v in file_meta.items() if v and v != "nan"} if file_meta else {}),
+                        },
+                    )
+                    if record:
+                        records.append(record)
+
+        except Exception:
+            continue
+
+    console.print(f"  [green]kaggle-franciskarajki: {len(records)} records[/]")
+    return records
+
+
 # ─── Main ─────────────────────────────────────────────────────────────────────
 
 def main():
@@ -919,6 +1059,7 @@ def main():
         parse_justice_files_text,
         parse_epstein_network,
         parse_doc_explorer,
+        parse_kaggle_franciskarajki,
     ]
     
     for parser in parsers:
@@ -951,6 +1092,7 @@ def main():
         "epstein-files-db": 11,
         "epstein-network": 12,
         "doc-explorer": 13,
+        "kaggle-franciskarajki": 19,
     }
     
     # Sort by source priority so richer records are kept

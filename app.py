@@ -12,9 +12,11 @@ Usage:
 import json
 import os
 import pickle
+import re
 import sys
 from pathlib import Path
 from collections import Counter
+from datetime import datetime
 from typing import Optional
 
 import numpy as np
@@ -284,6 +286,265 @@ def email_search(query: str = None, from_addr: str = None, to_addr: str = None,
     return results[:n_results]
 
 
+def _parse_gmail_query(query_str: str):
+    """Parse a Gmail-style query string into structured operators and free text.
+
+    Supported operators:
+        from:value, to:value, subject:value, cc:value, bcc:value,
+        after:YYYY-MM-DD, before:YYYY-MM-DD, has:attachment
+
+    Bare words (not part of an operator) become free-text search terms.
+    Quoted phrases like "some phrase" are kept together.
+    """
+    operators = {
+        "from": [],
+        "to": [],
+        "cc": [],
+        "bcc": [],
+        "subject": [],
+        "after": None,
+        "before": None,
+        "has": [],
+    }
+    free_text = []
+
+    # Tokenize: split on whitespace but respect quoted values  e.g. from:"John Doe"
+    token_re = re.compile(
+        r'(\w+):"([^"]*)"'     # operator:"quoted value"
+        r'|(\w+):(\S+)'        # operator:value
+        r'|"([^"]*)"'          # "quoted free text"
+        r"|(\S+)"              # bare word
+    )
+
+    for m in token_re.finditer(query_str):
+        if m.group(1):  # operator:"quoted"
+            op, val = m.group(1).lower(), m.group(2)
+        elif m.group(3):  # operator:value
+            op, val = m.group(3).lower(), m.group(4)
+        elif m.group(5):  # "quoted free text"
+            free_text.append(m.group(5))
+            continue
+        elif m.group(6):  # bare word
+            free_text.append(m.group(6))
+            continue
+        else:
+            continue
+
+        if op in ("from", "to", "cc", "bcc", "subject"):
+            operators[op].append(val.lower())
+        elif op == "after":
+            operators["after"] = val
+        elif op == "before":
+            operators["before"] = val
+        elif op == "has":
+            operators["has"].append(val.lower())
+
+    return operators, free_text
+
+
+def _parse_date_safe(date_str):
+    """Try to parse a date string into a comparable format. Returns None on failure."""
+    if not date_str:
+        return None
+    # Strip time component if present
+    date_str = date_str.strip()[:10]
+    for fmt in ("%Y-%m-%d", "%m/%d/%Y", "%m-%d-%Y", "%d/%m/%Y", "%B %d, %Y", "%b %d, %Y"):
+        try:
+            return datetime.strptime(date_str, fmt)
+        except (ValueError, TypeError):
+            continue
+    # Try parsing just the year
+    try:
+        return datetime.strptime(date_str[:4], "%Y")
+    except (ValueError, TypeError):
+        return None
+
+
+def gmail_style_email_search(query_str: str, n_results: int = 50):
+    """Gmail-style email search supporting operators and free text.
+
+    Operators: from:, to:, cc:, bcc:, subject:, after:, before:, has:attachment
+    Bare words search across subject and body text.
+
+    Returns (results_list, total_count) where each result is a dict with
+    from, to, cc, bcc, subject, date, body_preview, score, doc_id, source.
+    """
+    operators, free_text = _parse_gmail_query(query_str)
+
+    meta = get_metadata()
+    all_records = meta["indexed"] + meta["text_only"]
+
+    # Parse date bounds once
+    after_dt = _parse_date_safe(operators["after"]) if operators["after"] else None
+    before_dt = _parse_date_safe(operators["before"]) if operators["before"] else None
+
+    results = []
+
+    for i, record in enumerate(all_records):
+        rec_meta = record.get("metadata", {})
+
+        # Only consider email-like records
+        doc_type = rec_meta.get("doc_type", "").lower()
+        has_email_fields = any(rec_meta.get(f) for f in ("from", "to", "subject"))
+        if doc_type != "email" and not has_email_fields:
+            continue
+
+        score = 0
+        matched = True
+
+        # ── Field operator matching ──────────────────────────────────────
+        rec_from = rec_meta.get("from", "").lower()
+        rec_to = rec_meta.get("to", "").lower()
+        rec_cc = rec_meta.get("cc", "").lower()
+        rec_bcc = rec_meta.get("bcc", "").lower()
+        rec_subject = rec_meta.get("subject", "").lower()
+        rec_date_str = rec_meta.get("date", "")
+
+        # from: operator
+        for term in operators["from"]:
+            if term in rec_from:
+                score += 10
+            else:
+                matched = False
+                break
+
+        if not matched:
+            continue
+
+        # to: operator
+        for term in operators["to"]:
+            if term in rec_to:
+                score += 10
+            else:
+                matched = False
+                break
+
+        if not matched:
+            continue
+
+        # cc: operator
+        for term in operators["cc"]:
+            if term in rec_cc:
+                score += 8
+            else:
+                matched = False
+                break
+
+        if not matched:
+            continue
+
+        # bcc: operator
+        for term in operators["bcc"]:
+            if term in rec_bcc:
+                score += 8
+            else:
+                matched = False
+                break
+
+        if not matched:
+            continue
+
+        # subject: operator
+        for term in operators["subject"]:
+            if term in rec_subject:
+                score += 8
+            else:
+                matched = False
+                break
+
+        if not matched:
+            continue
+
+        # after:/before: date range
+        if after_dt or before_dt:
+            rec_dt = _parse_date_safe(rec_date_str)
+            if rec_dt is None:
+                # Can't verify date — skip if date filter is strict
+                if after_dt or before_dt:
+                    matched = False
+            else:
+                if after_dt and rec_dt < after_dt:
+                    matched = False
+                if before_dt and rec_dt > before_dt:
+                    matched = False
+
+        if not matched:
+            continue
+
+        # has:attachment
+        if "attachment" in operators["has"]:
+            attachments = rec_meta.get("attachments", rec_meta.get("has_attachment", False))
+            if isinstance(attachments, list):
+                has_attach = len(attachments) > 0
+            elif isinstance(attachments, bool):
+                has_attach = attachments
+            elif isinstance(attachments, str):
+                has_attach = attachments.lower() not in ("", "false", "no", "0", "none")
+            else:
+                has_attach = bool(attachments)
+            if not has_attach:
+                matched = False
+
+        if not matched:
+            continue
+
+        # ── Free text matching ───────────────────────────────────────────
+        body = (record.get("text_full", "") or record.get("text_preview", "")).lower()
+
+        if free_text:
+            all_text_matched = True
+            for word in free_text:
+                word_lower = word.lower()
+                if word_lower in rec_subject:
+                    score += 6  # subject match is high value
+                elif word_lower in rec_from or word_lower in rec_to:
+                    score += 5
+                elif word_lower in body:
+                    score += 3
+                else:
+                    all_text_matched = False
+                    break
+
+            if not all_text_matched:
+                continue
+
+        # If no operators and no free text were given, don't return everything
+        if score == 0 and not operators["after"] and not operators["before"]:
+            continue
+
+        # Date-range-only queries get a base score
+        if score == 0:
+            score = 1
+
+        # Build result
+        body_raw = record.get("text_full", "") or record.get("text_preview", "")
+        results.append({
+            "from": rec_meta.get("from", ""),
+            "to": rec_meta.get("to", ""),
+            "cc": rec_meta.get("cc", ""),
+            "bcc": rec_meta.get("bcc", ""),
+            "subject": rec_meta.get("subject", ""),
+            "date": rec_date_str,
+            "body_preview": body_raw[:300] if body_raw else "",
+            "score": score,
+            "doc_id": rec_meta.get("doc_id", record.get("id", "")[:12]),
+            "source": record.get("source", ""),
+            "index": i,
+        })
+
+    # Sort by score descending, then by date descending (most recent first)
+    def sort_key(r):
+        dt = _parse_date_safe(r["date"])
+        # Use a very old date as fallback so undated items sink
+        ts = dt.timestamp() if dt else 0
+        return (-r["score"], -ts)
+
+    results.sort(key=sort_key)
+
+    total_count = len(results)
+    return results[:n_results], total_count
+
+
 def get_stats():
     meta = get_metadata()
     search_idx = get_search_index()
@@ -383,7 +644,11 @@ def api_search():
         if mode == "name":
             results, matched_names = name_search(query, n_results=limit)
         elif mode == "email":
-            results = email_search(query=query, from_addr=from_addr, to_addr=to_addr, n_results=limit)
+            gmail_results, _total = gmail_style_email_search(query, n_results=limit)
+            # Wrap gmail results into the same shape as other modes
+            results = [{"record": {"metadata": r, "text_preview": r.get("body_preview", ""),
+                                    "source": r.get("source", "")},
+                         "score": r["score"], "index": r.get("index", -1)} for r in gmail_results]
         elif mode == "semantic":
             results, error = semantic_search(query, n_results=limit)
         else:
@@ -404,6 +669,29 @@ def api_search():
         return jsonify(resp)
     except Exception as e:
         return jsonify({"results": [], "count": 0, "error": str(e)}), 500
+
+
+@app.route("/api/email-search")
+def api_email_search():
+    """Gmail-style email search endpoint.
+
+    GET /api/email-search?q=from:epstein+to:maxwell+subject:meeting
+    """
+    query = request.args.get("q", "").strip()
+    limit = min(int(request.args.get("limit", 50)), 100)
+
+    if not query:
+        return jsonify({"results": [], "total_count": 0, "error": "No query provided"})
+
+    try:
+        results, total_count = gmail_style_email_search(query, n_results=limit)
+        return jsonify({
+            "results": results,
+            "total_count": total_count,
+            "query": query,
+        })
+    except Exception as e:
+        return jsonify({"results": [], "total_count": 0, "error": str(e)}), 500
 
 
 @app.route("/api/stats")
