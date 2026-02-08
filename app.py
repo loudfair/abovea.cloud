@@ -161,6 +161,8 @@ def require_auth():
         return  # no password set — open access
     if request.path == "/auth":
         return  # allow the login endpoint itself
+    if request.path == "/health":
+        return  # allow healthcheck (Railway needs 200 to keep service alive)
     if request.path.startswith("/static/"):
         return  # allow static files (CSS loads on login page)
     if session.get("authenticated"):
@@ -215,6 +217,13 @@ def auth():
         "ok": False,
         "error": f"Wrong password. {left} attempt{'s' if left != 1 else ''} remaining."
     }), 401
+
+
+@app.route("/health")
+def health():
+    """Healthcheck endpoint — exempt from auth so Railway can verify the service is alive."""
+    return jsonify({"status": "ok"}), 200
+
 
 # ─── Lazy-loaded globals ──────────────────────────────────────────────────────
 
