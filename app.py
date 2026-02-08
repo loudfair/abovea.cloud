@@ -1051,19 +1051,13 @@ def serialize_result(r):
 
 def ai_ask(question: str, search_results: list, max_context: int = 15):
     """Synthesize an answer from search results + intelligence layer using GPT-4o-mini."""
-    api_key = os.environ.get("ANTHROPIC_API_KEY") or os.environ.get("OPENAI_API_KEY")
+    api_key = os.environ.get("OPENAI_API_KEY")
     if not api_key:
-        return None, "Set ANTHROPIC_API_KEY environment variable for AI features."
-
-    use_claude = os.environ.get("ANTHROPIC_API_KEY") is not None
+        return None, "Set OPENAI_API_KEY environment variable for AI features."
 
     try:
-        if use_claude:
-            import anthropic
-            client = anthropic.Anthropic(api_key=api_key)
-        else:
-            from openai import OpenAI
-            client = OpenAI(api_key=api_key)
+        from openai import OpenAI
+        client = OpenAI(api_key=api_key)
 
         # ── 1. Database stats ──
         stats = get_stats()
@@ -1252,29 +1246,19 @@ def ai_ask(question: str, search_results: list, max_context: int = 15):
             f"--- MY FILES ---\n\n{context}"
         )
 
-        if use_claude:
-            response = client.messages.create(
-                model="claude-sonnet-4-5-20250929",
-                max_tokens=3000,
-                system=system_prompt,
-                messages=[{"role": "user", "content": user_content}],
-                temperature=0.9,
-            )
-            return response.content[0].text, None
-        else:
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_content},
-                ],
-                temperature=0.85,
-                max_tokens=3000,
-            )
-            return response.choices[0].message.content, None
+        response = client.chat.completions.create(
+            model="gpt-5-nano",
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_content},
+            ],
+            temperature=0.85,
+            max_tokens=3000,
+        )
+        return response.choices[0].message.content, None
 
     except ImportError:
-        return None, "pip install anthropic"
+        return None, "pip install openai"
     except Exception as e:
         return None, str(e)
 
@@ -1290,7 +1274,7 @@ def ai_expand_query(query: str):
         client = OpenAI(api_key=api_key)
 
         response = client.chat.completions.create(
-            model="gpt-4o",
+            model="gpt-5-nano",
             messages=[
                 {
                     "role": "system",
